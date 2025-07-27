@@ -246,10 +246,44 @@ pub fn Instructions() -> Element {
 
 #[component]
 pub fn WinMessage() -> Element {
+    let player_name = use_resource(|| async {
+        std::process::Command::new("whoami")
+            .output()
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+            .unwrap_or_else(|_| "Player".to_string())
+    });
+    
     rsx! {
         div {
-            style: "background-color: #4CAF50; color: white; padding: 10px; border-radius: 5px; margin-bottom: 20px; font-size: 18px;",
-            "🎉 Congratulations! You solved the puzzle! 🎉"
+            style: "background: linear-gradient(45deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4, #FFEAA7); color: white; padding: 30px; border-radius: 15px; margin-bottom: 20px; font-size: 24px; font-weight: bold; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.3); position: relative; overflow: hidden;",
+            
+            div {
+                style: "font-size: 28px; margin-bottom: 10px;",
+                "🎉 CONGRATULATIONS! 🎉"
+            }
+            
+            div {
+                style: "font-size: 20px; margin-bottom: 10px;",
+                match player_name.read().as_ref() {
+                    Some(name) => format!("Well done, {}!", name),
+                    None => "Well done!".to_string()
+                }
+            }
+            
+            div {
+                style: "font-size: 18px; margin-bottom: 15px;",
+                "You solved the puzzle like a true Sudoku master!"
+            }
+            
+            div {
+                style: "font-size: 32px;",
+                "🏆 🌟 ✨ 🎊 🎈"
+            }
+            
+            div {
+                style: "font-size: 14px; margin-top: 10px; opacity: 0.9;",
+                "Amazing work! Ready for another challenge?"
+            }
         }
     }
 }
