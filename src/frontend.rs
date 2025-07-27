@@ -1,7 +1,7 @@
 //! Frontend module containing UI components and styling
 
+use crate::backend::{SudokuGame, Difficulty};
 use dioxus::prelude::*;
-use crate::backend::SudokuGame;
 
 #[component]
 pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
@@ -9,23 +9,23 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
     rsx! {
         div {
             style: "display: inline-block; border: 3px solid #333; background-color: white; margin-bottom: 20px;",
-            
+
             for row in 0..9 {
                 div {
                     style: "display: flex;",
-                    
+
                     for col in 0..9 {
                         {
                             let cell_value = game_state.grid[row][col];
                             let is_selected = game_state.selected_cell == Some((row, col));
                             let is_initial = game_state.is_initial_cell(row, col);
-                            
+
                             let mut cell_style = String::from(
                                 "width: 50px; height: 50px; border: 1px solid #ccc; \
                                  display: flex; align-items: center; justify-content: center; \
                                  font-size: 18px; font-weight: bold; cursor: pointer;"
                             );
-                            
+
                             // Add thick borders for 3x3 boxes
                             if row % 3 == 0 {
                                 cell_style.push_str(" border-top: 2px solid #333;");
@@ -39,7 +39,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                             if col == 8 {
                                 cell_style.push_str(" border-right: 2px solid #333;");
                             }
-                            
+
                             // Cell coloring - distinguish between initial and user input
                             if is_selected {
                                 if is_initial {
@@ -57,7 +57,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                 // Empty cells: white background
                                 cell_style.push_str(" background-color: white; color: #666;");
                             }
-                            
+
                             rsx! {
                                 div {
                                     style: "{cell_style}",
@@ -67,7 +67,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                             game.write().select_cell(row, col);
                                         }
                                     },
-                                    
+
                                     {cell_value.map(|num| rsx! { "{num}" }).unwrap_or_else(|| rsx! { "" })}
                                 }
                             }
@@ -84,12 +84,12 @@ pub fn NumberInput(game: Signal<SudokuGame>) -> Element {
     rsx! {
         div {
             style: "margin-bottom: 20px;",
-            
+
             h3 { "Select a number:" }
-            
+
             div {
                 style: "display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;",
-                
+
                 for num in 1..=9 {
                     button {
                         style: "width: 40px; height: 40px; font-size: 18px; font-weight: bold; \
@@ -104,7 +104,7 @@ pub fn NumberInput(game: Signal<SudokuGame>) -> Element {
                         "{num}"
                     }
                 }
-                
+
                 button {
                     style: "width: 80px; height: 40px; font-size: 14px; font-weight: bold; \
                            border: 2px solid #f44336; background-color: white; color: #f44336; \
@@ -123,11 +123,79 @@ pub fn NumberInput(game: Signal<SudokuGame>) -> Element {
 }
 
 #[component]
+pub fn DifficultySelector(game: Signal<SudokuGame>) -> Element {
+    rsx! {
+        div {
+            style: "display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; \
+                   background-color: white; padding: 15px; border-radius: 10px; \
+                   box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+
+            span {
+                style: "font-weight: bold; color: #333; margin-right: 10px;",
+                "Difficulty:"
+            }
+
+            button {
+                style: "padding: 8px 16px; font-size: 14px; background-color: #8BC34A; \
+                       color: white; border: none; border-radius: 5px; cursor: pointer; \
+                       transition: background-color 0.3s;",
+                onclick: {
+                    let mut game = game.clone();
+                    move |_| {
+                        game.write().reset_with_difficulty(Difficulty::VeryEasy);
+                    }
+                },
+                "Very Easy"
+            }
+
+            button {
+                style: "padding: 8px 16px; font-size: 14px; background-color: #4CAF50; \
+                       color: white; border: none; border-radius: 5px; cursor: pointer; \
+                       transition: background-color 0.3s;",
+                onclick: {
+                    let mut game = game.clone();
+                    move |_| {
+                        game.write().reset_with_difficulty(Difficulty::Easy);
+                    }
+                },
+                "Easy"
+            }
+
+            button {
+                style: "padding: 8px 16px; font-size: 14px; background-color: #FF9800; \
+                       color: white; border: none; border-radius: 5px; cursor: pointer; \
+                       transition: background-color 0.3s;",
+                onclick: {
+                    let mut game = game.clone();
+                    move |_| {
+                        game.write().reset_with_difficulty(Difficulty::Medium);
+                    }
+                },
+                "Medium"
+            }
+
+            button {
+                style: "padding: 8px 16px; font-size: 14px; background-color: #f44336; \
+                       color: white; border: none; border-radius: 5px; cursor: pointer; \
+                       transition: background-color 0.3s;",
+                onclick: {
+                    let mut game = game.clone();
+                    move |_| {
+                        game.write().reset_with_difficulty(Difficulty::Hard);
+                    }
+                },
+                "Hard"
+            }
+        }
+    }
+}
+
+#[component]
 pub fn GameControls(game: Signal<SudokuGame>) -> Element {
     rsx! {
         div {
             style: "display: flex; justify-content: center; gap: 15px; margin-bottom: 20px;",
-            
+
             button {
                 style: "padding: 10px 20px; font-size: 16px; background-color: #FF9800; \
                        color: white; border: none; border-radius: 5px; cursor: pointer; \
@@ -140,19 +208,6 @@ pub fn GameControls(game: Signal<SudokuGame>) -> Element {
                 },
                 "💡 Hint"
             }
-            
-            button {
-                style: "padding: 10px 20px; font-size: 16px; background-color: #4CAF50; \
-                       color: white; border: none; border-radius: 5px; cursor: pointer; \
-                       transition: background-color 0.3s;",
-                onclick: {
-                    let mut game = game.clone();
-                    move |_| {
-                        game.write().reset();
-                    }
-                },
-                "🎮 New Game"
-            }
         }
     }
 }
@@ -164,7 +219,7 @@ pub fn Instructions() -> Element {
             style: "margin-top: 30px; max-width: 600px; margin-left: auto; margin-right: auto; \
                    text-align: left; background-color: white; padding: 20px; border-radius: 10px; \
                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
-            
+
             h3 { "How to Play:" }
             ul {
                 li { "Click on an empty cell to select it (highlighted in blue)" }

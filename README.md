@@ -15,6 +15,7 @@ A Sudoku game built with the Dioxus framework in Rust.
 - [x] 2. random generate a new game
 - [x] 3. use different color for given number and number for user input
 - [x] 4. add a solve helper button, per click, fill one empty cell with correct number
+- [x] make different level of new game, easy, medium, hard, based on the number of given number, let the player chose when gen new game
 - ensure the puzzle has unique solution
 - when give hint number, also give text format reason
 - make all the cell clickable, when one cell with number clicked, make all cells with the same number clicked

@@ -4,7 +4,7 @@ mod backend;
 mod frontend;
 
 use backend::SudokuGame;
-use frontend::{SudokuGrid, NumberInput, GameControls, Instructions, WinMessage};
+use frontend::{SudokuGrid, NumberInput, GameControls, Instructions, WinMessage, DifficultySelector};
 
 fn main() {
     dioxus::launch(App);
@@ -78,6 +78,8 @@ fn App() -> Element {
                 style: "color: #333; margin-bottom: 20px;",
                 "🐷 PigSudoku" 
             }
+            
+            DifficultySelector { game: game }
             
             if is_complete {
                 WinMessage {}
