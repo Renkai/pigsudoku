@@ -20,8 +20,8 @@ A Sudoku game built with the Dioxus framework in Rust.
 - [x] make all the cell clickable, when one cell with number clicked, make all cells with the same number clicked
 - [x] when the puzzle is solved, give more vivid congratulation message may be with animation
 - [x] when an empty cell clicked, pop up a option cube with number 1-9, when a number clicked, fill the cell with the number, and close the cube. During the pop up of the cube, keyboard input shall be still acceptable.
-- It seems when the player type or chose the wrong anwser, the game board will block what the player typed. Don't block, let the player keep inputing until there are obvious errors, when the error happened give some alert mark
-- when an obvious wrong number filled, give a red border to the cell as well as the conflict cell
+- [x] It seems when the player type or chose the wrong anwser, the game board will block what the player typed. Don't block, let the player keep inputing until there are obvious errors, when the error happened give some alert mark
+- In the right position of the puzzle field, make a log field, show the user's activities, like manually input or hint input of position and number. With the log, the player shall be able to revert or redo every step. We shall have buttons of revert and redo, also treat keyboard input left arrow and up arrow as revert, and right arrow and down arrow as redo.
 - give user a progress bar, when it takes a long time to generate puzzle
 - when give hint number, also give text format reason
   - read https://www.sudokudragon.com/sudokututorials.htm
