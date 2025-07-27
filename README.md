@@ -11,10 +11,16 @@ A Sudoku game built with the Dioxus framework in Rust.
   - Configure Cargo.toml with Dioxus dependencies
 
 ### Phase 2: Sudoku Game Implementation
-1. allow user to input via keyboard
-2. random generate a new game
-3. use different color for given number and number for user input
-4. add a solve helper button, per click, fill one empty cell with correct number
+- [x] 1. allow user to input via keyboard
+- [x] 2. random generate a new game
+- [x] 3. use different color for given number and number for user input
+- [x] 4. add a solve helper button, per click, fill one empty cell with correct number
+- ensure the puzzle has unique solution
+- when give hint number, also give text format reason
+- make all the cell clickable, when one cell with number clicked, make all cells with the same number clicked
+- when the puzzle is solved, give more vivid congratulation message may be with animation
+- when an empty cell clicked, pop up a option cube with number 1-9, when a number clicked, fill the cell with the number, and close the cube. During the pop up of the cube, keyboard input shall be still acceptable.
+- when an obvious wrong number filled, give a red border to the cell as well as the conflict cell
 
 ## Getting Started
 
@@ -44,11 +50,15 @@ pigsudoku/
 ## Features
 
 - ✅ **Interactive 9x9 Sudoku Grid**: Click cells to select and input numbers
+- ✅ **Keyboard Input**: Use number keys (1-9) to fill cells, arrow keys to navigate
+- ✅ **Random Puzzle Generation**: Each new game generates a unique, solvable puzzle
+- ✅ **Visual Distinction**: Different colors for given numbers vs user input
 - ✅ **Real-time Validation**: Prevents invalid moves according to Sudoku rules
-- ✅ **Visual Feedback**: Selected cells highlighted, initial numbers distinguished
-- ✅ **Game Controls**: Clear cell, new game functionality
+- ✅ **Hint System**: Solve helper button fills one correct cell per click
+- ✅ **Game Controls**: Clear cell, new game, and hint functionality
 - ✅ **Win Detection**: Congratulations message when puzzle is solved
 - ✅ **Responsive UI**: Clean, modern interface with proper styling
+- ✅ **Keyboard Navigation**: Full keyboard support for seamless gameplay
 
 ## Technologies
 

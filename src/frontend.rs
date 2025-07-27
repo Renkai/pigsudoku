@@ -40,13 +40,22 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                 cell_style.push_str(" border-right: 2px solid #333;");
                             }
                             
-                            // Cell coloring
+                            // Cell coloring - distinguish between initial and user input
                             if is_selected {
-                                cell_style.push_str(" background-color: #e3f2fd;");
+                                if is_initial {
+                                    cell_style.push_str(" background-color: #ffecb3; color: #333; font-weight: 900;");
+                                } else {
+                                    cell_style.push_str(" background-color: #e3f2fd; color: #1976D2;");
+                                }
                             } else if is_initial {
-                                cell_style.push_str(" background-color: #f5f5f5; color: #333;");
+                                // Given numbers: darker background, bold black text
+                                cell_style.push_str(" background-color: #e0e0e0; color: #000; font-weight: 900;");
+                            } else if cell_value.is_some() {
+                                // User input numbers: light background, blue text
+                                cell_style.push_str(" background-color: #f8f9fa; color: #1976D2; font-weight: 600;");
                             } else {
-                                cell_style.push_str(" background-color: white; color: #2196F3;");
+                                // Empty cells: white background
+                                cell_style.push_str(" background-color: white; color: #666;");
                             }
                             
                             rsx! {
@@ -117,16 +126,32 @@ pub fn NumberInput(game: Signal<SudokuGame>) -> Element {
 pub fn GameControls(game: Signal<SudokuGame>) -> Element {
     rsx! {
         div {
+            style: "display: flex; justify-content: center; gap: 15px; margin-bottom: 20px;",
+            
+            button {
+                style: "padding: 10px 20px; font-size: 16px; background-color: #FF9800; \
+                       color: white; border: none; border-radius: 5px; cursor: pointer; \
+                       transition: background-color 0.3s;",
+                onclick: {
+                    let mut game = game.clone();
+                    move |_| {
+                        game.write().solve_one_cell();
+                    }
+                },
+                "💡 Hint"
+            }
+            
             button {
                 style: "padding: 10px 20px; font-size: 16px; background-color: #4CAF50; \
-                       color: white; border: none; border-radius: 5px; cursor: pointer;",
+                       color: white; border: none; border-radius: 5px; cursor: pointer; \
+                       transition: background-color 0.3s;",
                 onclick: {
                     let mut game = game.clone();
                     move |_| {
                         game.write().reset();
                     }
                 },
-                "New Game"
+                "🎮 New Game"
             }
         }
     }
@@ -143,11 +168,14 @@ pub fn Instructions() -> Element {
             h3 { "How to Play:" }
             ul {
                 li { "Click on an empty cell to select it (highlighted in blue)" }
-                li { "Click a number button (1-9) to fill the selected cell" }
+                li { "Use keyboard numbers (1-9) or click number buttons to fill the selected cell" }
+                li { "Use arrow keys to navigate between cells" }
+                li { "Press Delete, Backspace, or 0 to clear the selected cell" }
                 li { "Each row, column, and 3×3 box must contain all numbers 1-9" }
-                li { "Gray cells are given numbers and cannot be changed" }
-                li { "Use 'Clear' to remove a number from the selected cell" }
-                li { "Click 'New Game' to start over" }
+                li { "Dark gray cells are given numbers and cannot be changed" }
+                li { "Light blue cells show your input numbers" }
+                li { "Click '💡 Hint' to get help with one cell" }
+                li { "Click '🎮 New Game' to start a new random puzzle" }
             }
         }
     }
