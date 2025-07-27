@@ -18,7 +18,7 @@ A Sudoku game built with the Dioxus framework in Rust.
 - [x] make different level of new game, easy, medium, hard, based on the number of given number, let the player chose when gen new game
 - [x] ensure the puzzle has unique solution
 - [x] make all the cell clickable, when one cell with number clicked, make all cells with the same number clicked
-- when the puzzle is solved, give more vivid congratulation message may be with animation
+- [x] when the puzzle is solved, give more vivid congratulation message may be with animation
 - when an empty cell clicked, pop up a option cube with number 1-9, when a number clicked, fill the cell with the number, and close the cube. During the pop up of the cube, keyboard input shall be still acceptable.
 - when an obvious wrong number filled, give a red border to the cell as well as the conflict cell
 - give user a progress bar, when it takes a long time to generate puzzle
