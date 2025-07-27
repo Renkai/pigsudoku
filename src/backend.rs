@@ -1,5 +1,7 @@
 //! Backend module containing Sudoku game logic and state management
 
+use std::collections::HashSet;
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum Difficulty {
     VeryEasy,
@@ -11,10 +13,10 @@ pub enum Difficulty {
 impl Difficulty {
     pub fn numbers_to_remove(&self) -> (usize, usize) {
         match self {
-            Difficulty::VeryEasy => (25, 35),   // Keep 46-56 numbers (very easy)
-            Difficulty::Easy => (35, 45),       // Keep 36-46 numbers (easier)
-            Difficulty::Medium => (45, 55),     // Keep 26-36 numbers (medium)
-            Difficulty::Hard => (55, 65),       // Keep 16-26 numbers (harder)
+            Difficulty::VeryEasy => (25, 35), // Keep 46-56 numbers (very easy)
+            Difficulty::Easy => (35, 45),     // Keep 36-46 numbers (easier)
+            Difficulty::Medium => (45, 55),   // Keep 26-36 numbers (medium)
+            Difficulty::Hard => (55, 65),     // Keep 16-26 numbers (harder)
         }
     }
 
@@ -33,6 +35,10 @@ pub struct SudokuGame {
     pub grid: [[Option<u8>; 9]; 9],
     pub initial_grid: [[Option<u8>; 9]; 9],
     pub selected_cell: Option<(usize, usize)>,
+    // Optimization: track available numbers for each constraint
+    row_available: [std::collections::HashSet<u8>; 9],
+    col_available: [std::collections::HashSet<u8>; 9],
+    box_available: [std::collections::HashSet<u8>; 9],
 }
 
 impl SudokuGame {
@@ -54,11 +60,16 @@ impl SudokuGame {
         // Create the puzzle by removing numbers based on difficulty
         let initial_grid = Self::create_puzzle_from_solution(grid, difficulty);
 
-        Self {
+        let mut game = Self {
             grid: initial_grid,
             initial_grid: initial_grid,
             selected_cell: None,
-        }
+            row_available: Default::default(),
+            col_available: Default::default(),
+            box_available: Default::default(),
+        };
+        game.initialize_constraint_sets();
+        game
     }
 
     fn fill_grid(grid: &mut [[Option<u8>; 9]; 9]) -> bool {
@@ -125,7 +136,18 @@ impl SudokuGame {
         true
     }
 
-    fn create_puzzle_from_solution(mut solution: [[Option<u8>; 9]; 9], difficulty: Difficulty) -> [[Option<u8>; 9]; 9] {
+    // Optimized version using constraint sets
+    fn is_valid_placement_fast(&self, row: usize, col: usize, num: u8) -> bool {
+        let box_idx = (row / 3) * 3 + (col / 3);
+        self.row_available[row].contains(&num)
+            && self.col_available[col].contains(&num)
+            && self.box_available[box_idx].contains(&num)
+    }
+
+    fn create_puzzle_from_solution(
+        mut solution: [[Option<u8>; 9]; 9],
+        difficulty: Difficulty,
+    ) -> [[Option<u8>; 9]; 9] {
         let seed = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -147,17 +169,17 @@ impl SudokuGame {
         // Remove numbers one by one, ensuring unique solution
         let (min_remove, max_remove) = difficulty.numbers_to_remove();
         let target_remove = min_remove + (seed % (max_remove - min_remove + 1));
-        
+
         let mut removed_count = 0;
         for &(row, col) in &positions {
             if removed_count >= target_remove {
                 break;
             }
-            
+
             // Try removing this cell
             let original_value = solution[row][col];
             solution[row][col] = None;
-            
+
             // Check if the puzzle still has a unique solution
             if Self::has_unique_solution(&solution) {
                 removed_count += 1;
@@ -171,32 +193,8 @@ impl SudokuGame {
     }
 
     pub fn is_valid_move(&self, row: usize, col: usize, num: u8) -> bool {
-        // Check row
-        for c in 0..9 {
-            if c != col && self.grid[row][c] == Some(num) {
-                return false;
-            }
-        }
-
-        // Check column
-        for r in 0..9 {
-            if r != row && self.grid[r][col] == Some(num) {
-                return false;
-            }
-        }
-
-        // Check 3x3 box
-        let box_row = (row / 3) * 3;
-        let box_col = (col / 3) * 3;
-        for r in box_row..box_row + 3 {
-            for c in box_col..box_col + 3 {
-                if (r != row || c != col) && self.grid[r][c] == Some(num) {
-                    return false;
-                }
-            }
-        }
-
-        true
+        // Use optimized constraint checking
+        self.is_valid_placement_fast(row, col, num)
     }
 
     pub fn is_complete(&self) -> bool {
@@ -224,7 +222,13 @@ impl SudokuGame {
         if let Some((row, col)) = self.selected_cell {
             if !self.is_initial_cell(row, col) {
                 if self.is_valid_move(row, col, num) {
+                    // Remove old number from constraint sets if exists
+                    if let Some(old_num) = self.grid[row][col] {
+                        self.remove_number_from_constraints(row, col, old_num);
+                    }
+
                     self.grid[row][col] = Some(num);
+                    self.add_number_to_constraints(row, col, num);
                     return true;
                 }
             }
@@ -235,6 +239,9 @@ impl SudokuGame {
     pub fn clear_selected_cell(&mut self) {
         if let Some((row, col)) = self.selected_cell {
             if !self.is_initial_cell(row, col) {
+                if let Some(num) = self.grid[row][col] {
+                    self.remove_number_from_constraints(row, col, num);
+                }
                 self.grid[row][col] = None;
             }
         }
@@ -249,6 +256,12 @@ impl SudokuGame {
     }
 
     pub fn solve_one_cell(&mut self) -> bool {
+        // First, verify the current puzzle state has a unique solution
+        if !Self::has_unique_solution(&self.grid) {
+            // Puzzle is invalid - no unique solution exists
+            return false;
+        }
+
         // Find the first empty cell that can be solved with only one valid number
         for row in 0..9 {
             for col in 0..9 {
@@ -257,40 +270,56 @@ impl SudokuGame {
 
                     for num in 1..=9 {
                         if self.is_valid_move(row, col, num) {
-                            valid_numbers.push(num);
+                            // Test if placing this number still leads to a unique solution
+                            let mut temp_grid = self.grid;
+                            temp_grid[row][col] = Some(num);
+                            
+                            if Self::has_unique_solution(&temp_grid) {
+                                valid_numbers.push(num);
+                            }
                         }
                     }
 
-                    // If there's only one valid number, fill it
+                    // If there's only one valid number that leads to unique solution, fill it
                     if valid_numbers.len() == 1 {
                         self.grid[row][col] = Some(valid_numbers[0]);
+                        self.add_number_to_constraints(row, col, valid_numbers[0]);
                         return true;
                     }
                 }
             }
         }
 
-        // If no cell with single solution found, try to find any solvable cell
-        // using more advanced techniques or just fill the first empty cell with a valid number
+        // If no cell with single solution found, try to find any cell where
+        // only one number leads to the unique solution
         for row in 0..9 {
             for col in 0..9 {
                 if self.grid[row][col].is_none() && !self.is_initial_cell(row, col) {
+                    let mut solution_preserving_numbers = Vec::new();
+                    
                     for num in 1..=9 {
                         if self.is_valid_move(row, col, num) {
-                            // Check if this number leads to a valid solution
+                            // Check if this number leads to the unique solution
                             let mut temp_grid = self.grid;
                             temp_grid[row][col] = Some(num);
 
-                            if Self::has_valid_solution(&temp_grid) {
-                                self.grid[row][col] = Some(num);
-                                return true;
+                            if Self::has_unique_solution(&temp_grid) {
+                                solution_preserving_numbers.push(num);
                             }
                         }
+                    }
+                    
+                    // If only one number preserves the unique solution, use it as hint
+                    if solution_preserving_numbers.len() == 1 {
+                        self.grid[row][col] = Some(solution_preserving_numbers[0]);
+                        self.add_number_to_constraints(row, col, solution_preserving_numbers[0]);
+                        return true;
                     }
                 }
             }
         }
 
+        // No helpful hint found - puzzle might be too complex or invalid
         false
     }
 
@@ -333,7 +362,7 @@ impl SudokuGame {
                             grid[row][col] = Some(num);
                             Self::count_solutions(grid, count);
                             grid[row][col] = None;
-                            
+
                             if *count > 1 {
                                 return; // Early exit
                             }
@@ -343,8 +372,40 @@ impl SudokuGame {
                 }
             }
         }
-        
+
         // If we reach here, we found a complete solution
         *count += 1;
+    }
+
+    fn initialize_constraint_sets(&mut self) {
+        // Initialize all sets with numbers 1-9
+        for i in 0..9 {
+            self.row_available[i] = (1..=9).collect();
+            self.col_available[i] = (1..=9).collect();
+            self.box_available[i] = (1..=9).collect();
+        }
+
+        // Remove numbers that are already placed
+        for row in 0..9 {
+            for col in 0..9 {
+                if let Some(num) = self.grid[row][col] {
+                    self.add_number_to_constraints(row, col, num);
+                }
+            }
+        }
+    }
+
+    fn add_number_to_constraints(&mut self, row: usize, col: usize, num: u8) {
+        let box_idx = (row / 3) * 3 + (col / 3);
+        self.row_available[row].remove(&num);
+        self.col_available[col].remove(&num);
+        self.box_available[box_idx].remove(&num);
+    }
+
+    fn remove_number_from_constraints(&mut self, row: usize, col: usize, num: u8) {
+        let box_idx = (row / 3) * 3 + (col / 3);
+        self.row_available[row].insert(num);
+        self.col_available[col].insert(num);
+        self.box_available[box_idx].insert(num);
     }
 }
