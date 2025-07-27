@@ -90,8 +90,8 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                         move |event: Event<MouseData>| {
                                             game.write().select_cell(row, col);
                                             
-                                            // Show popup for empty cells
-                                            if cell_value.is_none() {
+                                            // Show popup for empty cells or cells with conflicts (if not initial)
+                                            if cell_value.is_none() || (has_conflict && !is_initial) {
                                                 let client_x = event.client_coordinates().x;
                                                 let client_y = event.client_coordinates().y;
                                                 popup_position.set((client_x as i32, client_y as i32));
