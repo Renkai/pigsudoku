@@ -19,6 +19,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                             let cell_value = game_state.grid[row][col];
                             let is_selected = game_state.selected_cell == Some((row, col));
                             let is_initial = game_state.is_initial_cell(row, col);
+                            let is_highlighted = game_state.is_cell_highlighted(row, col);
 
                             let mut cell_style = String::from(
                                 "width: 50px; height: 50px; border: 1px solid #ccc; \
@@ -46,6 +47,13 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                     cell_style.push_str(" background-color: #ffecb3; color: #333; font-weight: 900;");
                                 } else {
                                     cell_style.push_str(" background-color: #e3f2fd; color: #1976D2;");
+                                }
+                            } else if is_highlighted {
+                                // Highlighted cells: light yellow background
+                                if is_initial {
+                                    cell_style.push_str(" background-color: #fff9c4; color: #000; font-weight: 900;");
+                                } else {
+                                    cell_style.push_str(" background-color: #fff9c4; color: #1976D2; font-weight: 600;");
                                 }
                             } else if is_initial {
                                 // Given numbers: darker background, bold black text

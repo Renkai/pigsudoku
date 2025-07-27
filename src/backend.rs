@@ -35,6 +35,7 @@ pub struct SudokuGame {
     pub grid: [[Option<u8>; 9]; 9],
     pub initial_grid: [[Option<u8>; 9]; 9],
     pub selected_cell: Option<(usize, usize)>,
+    pub highlighted_number: Option<u8>,
     // Optimization: track available numbers for each constraint
     row_available: [std::collections::HashSet<u8>; 9],
     col_available: [std::collections::HashSet<u8>; 9],
@@ -64,6 +65,7 @@ impl SudokuGame {
             grid: initial_grid,
             initial_grid: initial_grid,
             selected_cell: None,
+            highlighted_number: None,
             row_available: Default::default(),
             col_available: Default::default(),
             box_available: Default::default(),
@@ -215,6 +217,21 @@ impl SudokuGame {
     pub fn select_cell(&mut self, row: usize, col: usize) {
         if !self.is_initial_cell(row, col) {
             self.selected_cell = Some((row, col));
+        }
+        
+        // Set highlighted number based on the clicked cell's value
+        self.highlighted_number = self.grid[row][col];
+    }
+
+    pub fn set_highlighted_number(&mut self, num: Option<u8>) {
+        self.highlighted_number = num;
+    }
+
+    pub fn is_cell_highlighted(&self, row: usize, col: usize) -> bool {
+        if let Some(highlighted) = self.highlighted_number {
+            self.grid[row][col] == Some(highlighted)
+        } else {
+            false
         }
     }
 
