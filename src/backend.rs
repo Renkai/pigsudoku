@@ -64,7 +64,7 @@ pub struct SudokuGame {
 
 impl SudokuGame {
     pub fn new() -> Self {
-        Self::generate_random_puzzle(Difficulty::Medium)
+        Self::generate_random_puzzle(Difficulty::Easy)
     }
 
     pub fn new_with_difficulty(difficulty: Difficulty) -> Self {
