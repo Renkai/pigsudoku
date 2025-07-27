@@ -8,6 +8,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
     let popup_visible = use_signal(|| false);
     let popup_position = use_signal(|| (0, 0));
     let popup_cell = use_signal(|| None::<(usize, usize)>);
+    let noted_numbers = use_signal(|| std::collections::HashSet::<u8>::new());
     
     let game_state = game.read();
     rsx! {
@@ -121,7 +122,26 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                         } else {
                                             rsx! { "{num}" }
                                         }
-                                    }).unwrap_or_else(|| rsx! { "" })}
+                                    }).unwrap_or_else(|| {
+                                        // Show notes if cell is empty
+                                         let notes = game_state.get_notes(row, col);
+                                         if !notes.is_empty() {
+                                             let mut notes_vec: Vec<u8> = notes.iter().cloned().collect();
+                                             notes_vec.sort();
+                                            let notes_display = notes_vec.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(" ");
+                                            rsx! {
+                                                div {
+                                                    style: "font-size: 10px; color: #666; line-height: 1; \
+                                                           display: flex; flex-wrap: wrap; justify-content: center; \
+                                                           align-items: center; width: 100%; height: 100%; \
+                                                           padding: 2px;",
+                                                    "{notes_display}"
+                                                }
+                                            }
+                                        } else {
+                                            rsx! { "" }
+                                        }
+                                    })}
                                 }
                             }
                         }
@@ -136,30 +156,87 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                 style: format!(
                     "position: fixed; left: {}px; top: {}px; z-index: 1000; \
                      background: white; border: 2px solid #333; border-radius: 8px; \
-                     box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 8px; \
-                     display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;",
+                     box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 8px;",
                     popup_position.read().0, popup_position.read().1
                 ),
                 
-                for num in 1..=9 {
-                    button {
-                        style: "width: 40px; height: 40px; font-size: 16px; font-weight: bold; \
-                               border: 1px solid #2196F3; background-color: white; color: #2196F3; \
-                               border-radius: 4px; cursor: pointer; transition: all 0.2s; \
-                               hover:background-color: #e3f2fd;",
-                        onclick: {
-                            let mut game = game.clone();
-                            let mut popup_visible = popup_visible.clone();
-                            let popup_cell = popup_cell.clone();
-                            move |_| {
-                                if let Some((row, col)) = *popup_cell.read() {
-                                    game.write().select_cell(row, col);
-                                    game.write().input_number(num);
+                // Instructions
+                div {
+                    style: "text-align: center; font-size: 12px; color: #666; margin-bottom: 8px; \
+                           border-bottom: 1px solid #eee; padding-bottom: 8px;",
+                    "Left click: Fill number | Right click: Toggle note"
+                }
+                
+                // Number grid
+                div {
+                    style: "display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;",
+                    
+                    for num in 1..=9 {
+                        {
+                            let is_noted = if let Some((row, col)) = *popup_cell.read() {
+                                game_state.get_notes(row, col).contains(&num)
+                            } else {
+                                false
+                            };
+                            
+                            let button_style = if is_noted {
+                                "width: 40px; height: 40px; font-size: 12px; font-weight: bold; \
+                                 border: 2px solid #FFC107; background-color: #FFF9C4; color: #F57F17; \
+                                 border-radius: 4px; cursor: pointer; transition: all 0.2s;"
+                            } else {
+                                "width: 40px; height: 40px; font-size: 16px; font-weight: bold; \
+                                 border: 1px solid #2196F3; background-color: white; color: #2196F3; \
+                                 border-radius: 4px; cursor: pointer; transition: all 0.2s; \
+                                 hover:background-color: #e3f2fd;"
+                            };
+                            
+                            rsx! {
+                                button {
+                                    style: "{button_style}",
+                                    onclick: {
+                                        let mut game = game.clone();
+                                        let mut popup_visible = popup_visible.clone();
+                                        let popup_cell = popup_cell.clone();
+                                        move |_| {
+                                            if let Some((row, col)) = *popup_cell.read() {
+                                                game.write().select_cell(row, col);
+                                                game.write().input_number(num);
+                                            }
+                                            popup_visible.set(false);
+                                        }
+                                    },
+                                    oncontextmenu: {
+                                        let mut game = game.clone();
+                                        let popup_cell = popup_cell.clone();
+                                        move |event: Event<MouseData>| {
+                                            event.prevent_default();
+                                            if let Some((row, col)) = *popup_cell.read() {
+                                                game.write().select_cell(row, col);
+                                                game.write().toggle_note(row, col, num);
+                                            }
+                                        }
+                                    },
+                                    "{num}"
                                 }
+                            }
+                        }
+                    }
+                }
+                
+                // Note Done button
+                div {
+                    style: "margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px;",
+                    button {
+                        style: "width: 100%; padding: 8px; font-size: 14px; background-color: #4CAF50; \
+                               color: white; border: none; border-radius: 4px; cursor: pointer; \
+                               transition: background-color 0.3s;",
+                        onclick: {
+                            let mut popup_visible = popup_visible.clone();
+                            move |_| {
                                 popup_visible.set(false);
                             }
                         },
-                        "{num}"
+                        "✓ Note Done"
                     }
                 }
             }

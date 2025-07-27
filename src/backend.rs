@@ -53,6 +53,8 @@ pub struct SudokuGame {
     pub initial_grid: [[Option<u8>; 9]; 9],
     pub selected_cell: Option<(usize, usize)>,
     pub highlighted_number: Option<u8>,
+    // Notes: track which numbers are noted in each cell
+    pub notes: [[std::collections::HashSet<u8>; 9]; 9],
     // Optimization: track available numbers for each constraint
     row_available: [std::collections::HashSet<u8>; 9],
     col_available: [std::collections::HashSet<u8>; 9],
@@ -86,6 +88,7 @@ impl SudokuGame {
             initial_grid: initial_grid,
             selected_cell: None,
             highlighted_number: None,
+            notes: Default::default(),
             row_available: Default::default(),
             col_available: Default::default(),
             box_available: Default::default(),
@@ -270,6 +273,9 @@ impl SudokuGame {
                 // Always allow the input, regardless of validity
                 self.grid[row][col] = Some(num);
                 self.add_number_to_constraints(row, col, num);
+                
+                // Clear notes when a number is filled
+                self.clear_notes(row, col);
                 
                 // Record the move
                 self.record_move(row, col, old_value, Some(num), MoveType::Input);
@@ -619,5 +625,29 @@ impl SudokuGame {
             
             format!("{}{}: {} {}", marker, action, position, value_change)
         }).collect()
+    }
+
+    // Note management methods
+    pub fn toggle_note(&mut self, row: usize, col: usize, num: u8) {
+        // Only allow notes in empty cells
+        if self.grid[row][col].is_none() {
+            if self.notes[row][col].contains(&num) {
+                self.notes[row][col].remove(&num);
+            } else {
+                self.notes[row][col].insert(num);
+            }
+        }
+    }
+
+    pub fn get_notes(&self, row: usize, col: usize) -> &std::collections::HashSet<u8> {
+        &self.notes[row][col]
+    }
+
+    pub fn clear_notes(&mut self, row: usize, col: usize) {
+        self.notes[row][col].clear();
+    }
+
+    pub fn has_notes(&self, row: usize, col: usize) -> bool {
+        !self.notes[row][col].is_empty()
     }
 }
