@@ -4,7 +4,7 @@ mod backend;
 mod frontend;
 
 use backend::SudokuGame;
-use frontend::{SudokuGrid, GameControls, Instructions, WinMessage, DifficultySelector};
+use frontend::{SudokuGrid, GameControls, Instructions, WinMessage, DifficultySelector, MoveLog, UndoRedoControls};
 
 fn main() {
     dioxus::launch(App);
@@ -38,36 +38,20 @@ fn App() -> Element {
                             game.write().clear_selected_cell();
                         }
                         Key::ArrowUp => {
-                            let mut game_state = game.write();
-                            if let Some((row, col)) = game_state.selected_cell {
-                                if row > 0 {
-                                    game_state.select_cell(row - 1, col);
-                                }
-                            }
+                            // Undo functionality
+                            game.write().undo();
                         }
                         Key::ArrowDown => {
-                            let mut game_state = game.write();
-                            if let Some((row, col)) = game_state.selected_cell {
-                                if row < 8 {
-                                    game_state.select_cell(row + 1, col);
-                                }
-                            }
+                            // Redo functionality
+                            game.write().redo();
                         }
                         Key::ArrowLeft => {
-                            let mut game_state = game.write();
-                            if let Some((row, col)) = game_state.selected_cell {
-                                if col > 0 {
-                                    game_state.select_cell(row, col - 1);
-                                }
-                            }
+                            // Undo functionality (alternative)
+                            game.write().undo();
                         }
                         Key::ArrowRight => {
-                            let mut game_state = game.write();
-                            if let Some((row, col)) = game_state.selected_cell {
-                                if col < 8 {
-                                    game_state.select_cell(row, col + 1);
-                                }
-                            }
+                            // Redo functionality (alternative)
+                            game.write().redo();
                         }
                         _ => {}
                     }
@@ -85,8 +69,22 @@ fn App() -> Element {
                 WinMessage {}
             }
             
-            SudokuGrid { game: game }
-            GameControls { game: game }
+            div {
+                style: "display: flex; justify-content: center; gap: 40px; align-items: flex-start; max-width: 1200px; margin: 0 auto;",
+                
+                div {
+                    style: "display: flex; flex-direction: column; align-items: center;",
+                    SudokuGrid { game: game }
+                    GameControls { game: game }
+                    UndoRedoControls { game: game }
+                }
+                
+                div {
+                    style: "min-width: 300px;",
+                    MoveLog { game: game }
+                }
+            }
+            
             Instructions {}
         }
     }

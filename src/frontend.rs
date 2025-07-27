@@ -180,6 +180,116 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
     }
 }
 
+#[component]
+pub fn UndoRedoControls(game: Signal<SudokuGame>) -> Element {
+    let game_state = game.read();
+    let can_undo = game_state.can_undo();
+    let can_redo = game_state.can_redo();
+    
+    rsx! {
+        div {
+            style: "display: flex; justify-content: center; gap: 15px; margin-top: 15px;",
+
+            button {
+                style: format!(
+                    "padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: {}; transition: all 0.3s; {}",
+                    if can_undo { "pointer" } else { "not-allowed" },
+                    if can_undo {
+                        "background-color: #2196F3; color: white;"
+                    } else {
+                        "background-color: #ccc; color: #666;"
+                    }
+                ),
+                disabled: !can_undo,
+                onclick: {
+                    let mut game = game.clone();
+                    move |_| {
+                        game.write().undo();
+                    }
+                },
+                "↶ Undo (↑/←)"
+            }
+
+            button {
+                style: format!(
+                    "padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: {}; transition: all 0.3s; {}",
+                    if can_redo { "pointer" } else { "not-allowed" },
+                    if can_redo {
+                        "background-color: #4CAF50; color: white;"
+                    } else {
+                        "background-color: #ccc; color: #666;"
+                    }
+                ),
+                disabled: !can_redo,
+                onclick: {
+                    let mut game = game.clone();
+                    move |_| {
+                        game.write().redo();
+                    }
+                },
+                "↷ Redo (↓/→)"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn MoveLog(game: Signal<SudokuGame>) -> Element {
+    let game_state = game.read();
+    let move_log = game_state.get_move_log();
+    
+    rsx! {
+        div {
+            style: "background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-height: 500px; overflow-y: auto;",
+            
+            h3 {
+                style: "margin-top: 0; margin-bottom: 15px; color: #333; font-size: 18px; border-bottom: 2px solid #2196F3; padding-bottom: 8px;",
+                "📋 Move History"
+            }
+            
+            if move_log.is_empty() {
+                div {
+                    style: "text-align: center; color: #666; font-style: italic; padding: 20px;",
+                    "No moves yet. Start playing to see your history!"
+                }
+            } else {
+                div {
+                    style: "font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.6;",
+                    
+                    for (index, log_entry) in move_log.iter().enumerate() {
+                        {
+                            let entry_style = if log_entry.starts_with("► ") {
+                                "background-color: #e3f2fd; padding: 8px; margin: 2px 0; border-radius: 4px; border-left: 4px solid #2196F3; font-weight: bold;"
+                            } else if log_entry.starts_with("✓ ") {
+                                "background-color: #f1f8e9; padding: 8px; margin: 2px 0; border-radius: 4px; border-left: 4px solid #4CAF50; color: #2e7d32;"
+                            } else {
+                                "background-color: #f5f5f5; padding: 8px; margin: 2px 0; border-radius: 4px; border-left: 4px solid #ccc; color: #666;"
+                            };
+                            
+                            rsx! {
+                                div {
+                                    key: "{index}",
+                                    style: "{entry_style}",
+                                    "{log_entry}"
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                div {
+                    style: "margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; font-size: 12px; color: #666;",
+                    
+                    div { "Legend:" }
+                    div { "► Current position" }
+                    div { "✓ Completed moves" }
+                    div { "○ Future moves (after undo)" }
+                }
+            }
+        }
+    }
+}
+
 
 
 #[component]
@@ -284,13 +394,15 @@ pub fn Instructions() -> Element {
             ul {
                 li { "Click on an empty cell to select it (highlighted in blue)" }
                 li { "Use keyboard numbers (1-9) or click on empty cells to open number picker" }
-                li { "Use arrow keys to navigate between cells" }
                 li { "Press Delete, Backspace, or 0 to clear the selected cell" }
+                li { "Use arrow keys (↑/↓ or ←/→) to undo/redo moves" }
                 li { "Each row, column, and 3×3 box must contain all numbers 1-9" }
                 li { "Dark gray cells are given numbers and cannot be changed" }
                 li { "Light blue cells show your input numbers" }
+                li { "Red cells with '!' indicate conflicts that need to be resolved" }
                 li { "Click '💡 Hint' to get help with one cell" }
-                li { "Click '🎮 New Game' to start a new random puzzle" }
+                li { "Use 'Undo' and 'Redo' buttons or keyboard shortcuts to navigate your move history" }
+                li { "View your complete move history in the log panel" }
             }
         }
     }

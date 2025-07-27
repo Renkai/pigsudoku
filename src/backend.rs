@@ -3,6 +3,23 @@
 use std::collections::HashSet;
 
 #[derive(Clone, PartialEq, Debug)]
+pub enum MoveType {
+    Input,
+    Clear,
+    Hint,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct GameMove {
+    pub row: usize,
+    pub col: usize,
+    pub old_value: Option<u8>,
+    pub new_value: Option<u8>,
+    pub move_type: MoveType,
+    pub timestamp: String,
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub enum Difficulty {
     VeryEasy,
     Easy,
@@ -40,6 +57,9 @@ pub struct SudokuGame {
     row_available: [std::collections::HashSet<u8>; 9],
     col_available: [std::collections::HashSet<u8>; 9],
     box_available: [std::collections::HashSet<u8>; 9],
+    // Undo/Redo system
+    pub move_history: Vec<GameMove>,
+    pub current_move_index: Option<usize>,
 }
 
 impl SudokuGame {
@@ -69,6 +89,8 @@ impl SudokuGame {
             row_available: Default::default(),
             col_available: Default::default(),
             box_available: Default::default(),
+            move_history: Vec::new(),
+            current_move_index: None,
         };
         game.initialize_constraint_sets();
         game
@@ -238,14 +260,20 @@ impl SudokuGame {
     pub fn input_number(&mut self, num: u8) -> bool {
         if let Some((row, col)) = self.selected_cell {
             if !self.is_initial_cell(row, col) {
+                let old_value = self.grid[row][col];
+                
                 // Remove old number from constraint sets if exists
-                if let Some(old_num) = self.grid[row][col] {
+                if let Some(old_num) = old_value {
                     self.remove_number_from_constraints(row, col, old_num);
                 }
 
                 // Always allow the input, regardless of validity
                 self.grid[row][col] = Some(num);
                 self.add_number_to_constraints(row, col, num);
+                
+                // Record the move
+                self.record_move(row, col, old_value, Some(num), MoveType::Input);
+                
                 return true;
             }
         }
@@ -285,10 +313,14 @@ impl SudokuGame {
     pub fn clear_selected_cell(&mut self) {
         if let Some((row, col)) = self.selected_cell {
             if !self.is_initial_cell(row, col) {
-                if let Some(num) = self.grid[row][col] {
+                let old_value = self.grid[row][col];
+                if let Some(num) = old_value {
                     self.remove_number_from_constraints(row, col, num);
                 }
                 self.grid[row][col] = None;
+                
+                // Record the move
+                self.record_move(row, col, old_value, None, MoveType::Clear);
             }
         }
     }
@@ -328,8 +360,13 @@ impl SudokuGame {
 
                     // If there's only one valid number that leads to unique solution, fill it
                     if valid_numbers.len() == 1 {
+                        let old_value = self.grid[row][col];
                         self.grid[row][col] = Some(valid_numbers[0]);
                         self.add_number_to_constraints(row, col, valid_numbers[0]);
+                        
+                        // Record the hint move
+                        self.record_move(row, col, old_value, Some(valid_numbers[0]), MoveType::Hint);
+                        
                         return true;
                     }
                 }
@@ -357,8 +394,13 @@ impl SudokuGame {
                     
                     // If only one number preserves the unique solution, use it as hint
                     if solution_preserving_numbers.len() == 1 {
+                        let old_value = self.grid[row][col];
                         self.grid[row][col] = Some(solution_preserving_numbers[0]);
                         self.add_number_to_constraints(row, col, solution_preserving_numbers[0]);
+                        
+                        // Record the hint move
+                        self.record_move(row, col, old_value, Some(solution_preserving_numbers[0]), MoveType::Hint);
+                        
                         return true;
                     }
                 }
@@ -453,5 +495,129 @@ impl SudokuGame {
         self.row_available[row].insert(num);
         self.col_available[col].insert(num);
         self.box_available[box_idx].insert(num);
+    }
+
+    // Undo/Redo functionality
+    fn record_move(&mut self, row: usize, col: usize, old_value: Option<u8>, new_value: Option<u8>, move_type: MoveType) {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_string();
+
+        let game_move = GameMove {
+            row,
+            col,
+            old_value,
+            new_value,
+            move_type,
+            timestamp,
+        };
+
+        // If we're not at the end of history, truncate future moves
+        if let Some(current_index) = self.current_move_index {
+            self.move_history.truncate(current_index + 1);
+        } else {
+            self.move_history.clear();
+        }
+
+        self.move_history.push(game_move);
+        self.current_move_index = Some(self.move_history.len() - 1);
+    }
+
+    pub fn can_undo(&self) -> bool {
+        self.current_move_index.is_some()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        if let Some(current_index) = self.current_move_index {
+            current_index + 1 < self.move_history.len()
+        } else {
+            !self.move_history.is_empty()
+        }
+    }
+
+    pub fn undo(&mut self) -> bool {
+        if let Some(current_index) = self.current_move_index {
+            let game_move = &self.move_history[current_index].clone();
+            
+            // Revert the move
+            if let Some(old_num) = self.grid[game_move.row][game_move.col] {
+                self.remove_number_from_constraints(game_move.row, game_move.col, old_num);
+            }
+            
+            self.grid[game_move.row][game_move.col] = game_move.old_value;
+            
+            if let Some(new_num) = game_move.old_value {
+                self.add_number_to_constraints(game_move.row, game_move.col, new_num);
+            }
+            
+            // Update move index
+            if current_index == 0 {
+                self.current_move_index = None;
+            } else {
+                self.current_move_index = Some(current_index - 1);
+            }
+            
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn redo(&mut self) -> bool {
+        let next_index = if let Some(current_index) = self.current_move_index {
+            current_index + 1
+        } else {
+            0
+        };
+        
+        if next_index < self.move_history.len() {
+            let game_move = &self.move_history[next_index].clone();
+            
+            // Apply the move
+            if let Some(old_num) = self.grid[game_move.row][game_move.col] {
+                self.remove_number_from_constraints(game_move.row, game_move.col, old_num);
+            }
+            
+            self.grid[game_move.row][game_move.col] = game_move.new_value;
+            
+            if let Some(new_num) = game_move.new_value {
+                self.add_number_to_constraints(game_move.row, game_move.col, new_num);
+            }
+            
+            self.current_move_index = Some(next_index);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_move_log(&self) -> Vec<String> {
+        self.move_history.iter().enumerate().map(|(index, game_move)| {
+            let action = match game_move.move_type {
+                MoveType::Input => "Manual input",
+                MoveType::Clear => "Clear cell",
+                MoveType::Hint => "Hint input",
+            };
+            
+            let position = format!("R{}C{}", game_move.row + 1, game_move.col + 1);
+            let value_change = match (game_move.old_value, game_move.new_value) {
+                (None, Some(new)) => format!("→ {}", new),
+                (Some(old), None) => format!("{} → ∅", old),
+                (Some(old), Some(new)) => format!("{} → {}", old, new),
+                (None, None) => "∅ → ∅".to_string(),
+            };
+            
+            let marker = if Some(index) == self.current_move_index {
+                "► "
+            } else if Some(index) < self.current_move_index {
+                "✓ "
+            } else {
+                "○ "
+            };
+            
+            format!("{}{}: {} {}", marker, action, position, value_change)
+        }).collect()
     }
 }
