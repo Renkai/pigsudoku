@@ -5,6 +5,10 @@ use dioxus::prelude::*;
 
 #[component]
 pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
+    let popup_visible = use_signal(|| false);
+    let popup_position = use_signal(|| (0, 0));
+    let popup_cell = use_signal(|| None::<(usize, usize)>);
+    
     let game_state = game.read();
     rsx! {
         div {
@@ -71,8 +75,22 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                     style: "{cell_style}",
                                     onclick: {
                                         let mut game = game.clone();
-                                        move |_| {
+                                        let popup_visible = popup_visible.clone();
+                                        let popup_position = popup_position.clone();
+                                        let popup_cell = popup_cell.clone();
+                                        move |event: Event<MouseData>| {
                                             game.write().select_cell(row, col);
+                                            
+                                            // Show popup for empty cells
+                                            if cell_value.is_none() {
+                                                let client_x = event.client_coordinates().x;
+                                                let client_y = event.client_coordinates().y;
+                                                popup_position.set((client_x as i32, client_y as i32));
+                                                popup_cell.set(Some((row, col)));
+                                                popup_visible.set(true);
+                                            } else {
+                                                popup_visible.set(false);
+                                            }
                                         }
                                     },
 
@@ -82,6 +100,54 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                         }
                     }
                 }
+            }
+        }
+        
+        // Number picker popup
+        if *popup_visible.read() {
+            div {
+                style: format!(
+                    "position: fixed; left: {}px; top: {}px; z-index: 1000; \
+                     background: white; border: 2px solid #333; border-radius: 8px; \
+                     box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 8px; \
+                     display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;",
+                    popup_position.read().0, popup_position.read().1
+                ),
+                
+                for num in 1..=9 {
+                    button {
+                        style: "width: 40px; height: 40px; font-size: 16px; font-weight: bold; \
+                               border: 1px solid #2196F3; background-color: white; color: #2196F3; \
+                               border-radius: 4px; cursor: pointer; transition: all 0.2s; \
+                               hover:background-color: #e3f2fd;",
+                        onclick: {
+                            let mut game = game.clone();
+                            let popup_visible = popup_visible.clone();
+                            let popup_cell = popup_cell.clone();
+                            move |_| {
+                                if let Some((row, col)) = *popup_cell.read() {
+                                    game.write().select_cell(row, col);
+                                    game.write().input_number(num);
+                                }
+                                popup_visible.set(false);
+                            }
+                        },
+                        "{num}"
+                    }
+                }
+            }
+        }
+        
+        // Click outside to close popup
+        if *popup_visible.read() {
+            div {
+                style: "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 999;",
+                onclick: {
+                    let popup_visible = popup_visible.clone();
+                    move |_| {
+                        popup_visible.set(false);
+                    }
+                },
             }
         }
     }
