@@ -4,7 +4,7 @@ mod backend;
 mod frontend;
 
 use backend::SudokuGame;
-use frontend::{SudokuGrid, NumberInput, GameControls, Instructions, WinMessage, DifficultySelector};
+use frontend::{SudokuGrid, GameControls, Instructions, WinMessage, DifficultySelector};
 
 fn main() {
     dioxus::launch(App);
@@ -86,7 +86,6 @@ fn App() -> Element {
             }
             
             SudokuGrid { game: game }
-            NumberInput { game: game }
             GameControls { game: game }
             Instructions {}
         }

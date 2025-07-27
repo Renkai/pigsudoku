@@ -24,11 +24,12 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                             let is_selected = game_state.selected_cell == Some((row, col));
                             let is_initial = game_state.is_initial_cell(row, col);
                             let is_highlighted = game_state.is_cell_highlighted(row, col);
+                            let has_conflict = game_state.has_conflicts(row, col);
 
                             let mut cell_style = String::from(
                                 "width: 50px; height: 50px; border: 1px solid #ccc; \
                                  display: flex; align-items: center; justify-content: center; \
-                                 font-size: 18px; font-weight: bold; cursor: pointer;"
+                                 font-size: 18px; font-weight: bold; cursor: pointer; transition: all 0.2s; position: relative;"
                             );
 
                             // Add thick borders for 3x3 boxes
@@ -46,7 +47,14 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                             }
 
                             // Cell coloring - distinguish between initial and user input
-                            if is_selected {
+                            if has_conflict {
+                                // Conflict cells: red background/border to indicate error
+                                if is_initial {
+                                    cell_style.push_str(" background-color: #ffcdd2; color: #d32f2f; font-weight: 900; border: 2px solid #f44336;");
+                                } else {
+                                    cell_style.push_str(" background-color: #ffebee; color: #d32f2f; font-weight: 600; border: 2px solid #f44336;");
+                                }
+                            } else if is_selected {
                                 if is_initial {
                                     cell_style.push_str(" background-color: #ffecb3; color: #333; font-weight: 900;");
                                 } else {
@@ -75,9 +83,9 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                     style: "{cell_style}",
                                     onclick: {
                                         let mut game = game.clone();
-                                        let popup_visible = popup_visible.clone();
-                                        let popup_position = popup_position.clone();
-                                        let popup_cell = popup_cell.clone();
+                                        let mut popup_visible = popup_visible.clone();
+                                        let mut popup_position = popup_position.clone();
+                                        let mut popup_cell = popup_cell.clone();
                                         move |event: Event<MouseData>| {
                                             game.write().select_cell(row, col);
                                             
@@ -94,7 +102,26 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                         }
                                     },
 
-                                    {cell_value.map(|num| rsx! { "{num}" }).unwrap_or_else(|| rsx! { "" })}
+                                    {cell_value.map(|num| {
+                                        if has_conflict {
+                                            rsx! {
+                                                span { style: "position: relative;",
+                                                    "{num}"
+                                                    span {
+                                                        style: "position: absolute; top: -8px; right: -8px; \
+                                                               background-color: #f44336; color: white; \
+                                                               border-radius: 50%; width: 16px; height: 16px; \
+                                                               font-size: 10px; display: flex; \
+                                                               align-items: center; justify-content: center; \
+                                                               font-weight: bold;",
+                                                        "!"
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            rsx! { "{num}" }
+                                        }
+                                    }).unwrap_or_else(|| rsx! { "" })}
                                 }
                             }
                         }
@@ -122,7 +149,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                hover:background-color: #e3f2fd;",
                         onclick: {
                             let mut game = game.clone();
-                            let popup_visible = popup_visible.clone();
+                            let mut popup_visible = popup_visible.clone();
                             let popup_cell = popup_cell.clone();
                             move |_| {
                                 if let Some((row, col)) = *popup_cell.read() {
@@ -143,7 +170,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
             div {
                 style: "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 999;",
                 onclick: {
-                    let popup_visible = popup_visible.clone();
+                    let mut popup_visible = popup_visible.clone();
                     move |_| {
                         popup_visible.set(false);
                     }
@@ -153,48 +180,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
     }
 }
 
-#[component]
-pub fn NumberInput(game: Signal<SudokuGame>) -> Element {
-    rsx! {
-        div {
-            style: "margin-bottom: 20px;",
 
-            h3 { "Select a number:" }
-
-            div {
-                style: "display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;",
-
-                for num in 1..=9 {
-                    button {
-                        style: "width: 40px; height: 40px; font-size: 18px; font-weight: bold; \
-                               border: 2px solid #2196F3; background-color: white; color: #2196F3; \
-                               border-radius: 5px; cursor: pointer;",
-                        onclick: {
-                            let mut game = game.clone();
-                            move |_| {
-                                game.write().input_number(num);
-                            }
-                        },
-                        "{num}"
-                    }
-                }
-
-                button {
-                    style: "width: 80px; height: 40px; font-size: 14px; font-weight: bold; \
-                           border: 2px solid #f44336; background-color: white; color: #f44336; \
-                           border-radius: 5px; cursor: pointer; margin-left: 10px;",
-                    onclick: {
-                        let mut game = game.clone();
-                        move |_| {
-                            game.write().clear_selected_cell();
-                        }
-                    },
-                    "Clear"
-                }
-            }
-        }
-    }
-}
 
 #[component]
 pub fn DifficultySelector(game: Signal<SudokuGame>) -> Element {
@@ -297,7 +283,7 @@ pub fn Instructions() -> Element {
             h3 { "How to Play:" }
             ul {
                 li { "Click on an empty cell to select it (highlighted in blue)" }
-                li { "Use keyboard numbers (1-9) or click number buttons to fill the selected cell" }
+                li { "Use keyboard numbers (1-9) or click on empty cells to open number picker" }
                 li { "Use arrow keys to navigate between cells" }
                 li { "Press Delete, Backspace, or 0 to clear the selected cell" }
                 li { "Each row, column, and 3×3 box must contain all numbers 1-9" }

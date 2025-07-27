@@ -238,15 +238,44 @@ impl SudokuGame {
     pub fn input_number(&mut self, num: u8) -> bool {
         if let Some((row, col)) = self.selected_cell {
             if !self.is_initial_cell(row, col) {
-                if self.is_valid_move(row, col, num) {
-                    // Remove old number from constraint sets if exists
-                    if let Some(old_num) = self.grid[row][col] {
-                        self.remove_number_from_constraints(row, col, old_num);
-                    }
+                // Remove old number from constraint sets if exists
+                if let Some(old_num) = self.grid[row][col] {
+                    self.remove_number_from_constraints(row, col, old_num);
+                }
 
-                    self.grid[row][col] = Some(num);
-                    self.add_number_to_constraints(row, col, num);
+                // Always allow the input, regardless of validity
+                self.grid[row][col] = Some(num);
+                self.add_number_to_constraints(row, col, num);
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn has_conflicts(&self, row: usize, col: usize) -> bool {
+        if let Some(num) = self.grid[row][col] {
+            // Check for conflicts in the same row
+            for c in 0..9 {
+                if c != col && self.grid[row][c] == Some(num) {
                     return true;
+                }
+            }
+
+            // Check for conflicts in the same column
+            for r in 0..9 {
+                if r != row && self.grid[r][col] == Some(num) {
+                    return true;
+                }
+            }
+
+            // Check for conflicts in the same 3x3 box
+            let box_row = (row / 3) * 3;
+            let box_col = (col / 3) * 3;
+            for r in box_row..box_row + 3 {
+                for c in box_col..box_col + 3 {
+                    if (r != row || c != col) && self.grid[r][c] == Some(num) {
+                        return true;
+                    }
                 }
             }
         }
