@@ -30,10 +30,10 @@ pub enum Difficulty {
 impl Difficulty {
     pub fn numbers_to_remove(&self) -> (usize, usize) {
         match self {
-            Difficulty::VeryEasy => (25, 35), // Keep 46-56 numbers (very easy)
-            Difficulty::Easy => (35, 45),     // Keep 36-46 numbers (easier)
-            Difficulty::Medium => (45, 55),   // Keep 26-36 numbers (medium)
-            Difficulty::Hard => (55, 65),     // Keep 16-26 numbers (harder)
+            Difficulty::VeryEasy => (31, 36), // Keep 45-50 numbers (very easy)
+            Difficulty::Easy => (36, 41),     // Keep 40-45 numbers (easy)
+            Difficulty::Medium => (41, 46),   // Keep 35-40 numbers (medium)
+            Difficulty::Hard => (46, 51),     // Keep 30-35 numbers (hard)
         }
     }
 
