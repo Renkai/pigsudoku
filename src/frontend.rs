@@ -1,7 +1,8 @@
 //! Frontend module containing UI components and styling
 
-use crate::backend::{SudokuGame, Difficulty};
+use crate::backend::{Difficulty, SudokuGame};
 use dioxus::prelude::*;
+use dioxus_i18n::t;
 
 #[component]
 pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
@@ -9,7 +10,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
     let popup_position = use_signal(|| (0, 0));
     let popup_cell = use_signal(|| None::<(usize, usize)>);
     let noted_numbers = use_signal(|| std::collections::HashSet::<u8>::new());
-    
+
     let game_state = game.read();
     rsx! {
         div {
@@ -89,7 +90,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                         let mut popup_cell = popup_cell.clone();
                                         move |event: Event<MouseData>| {
                                             game.write().select_cell(row, col);
-                                            
+
                                             // Show popup for empty cells or cells with conflicts (if not initial)
                                             if cell_value.is_none() || (has_conflict && !is_initial) {
                                                 let client_x = event.client_coordinates().x;
@@ -149,7 +150,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                 }
             }
         }
-        
+
         // Number picker popup
         if *popup_visible.read() {
             div {
@@ -159,18 +160,18 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                      box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 8px;",
                     popup_position.read().0, popup_position.read().1
                 ),
-                
+
                 // Instructions
                 div {
                     style: "text-align: center; font-size: 12px; color: #666; margin-bottom: 8px; \
                            border-bottom: 1px solid #eee; padding-bottom: 8px;",
                     "Left click: Fill number | Right click: Toggle note"
                 }
-                
+
                 // Number grid
                 div {
                     style: "display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;",
-                    
+
                     for num in 1..=9 {
                         {
                             let is_noted = if let Some((row, col)) = *popup_cell.read() {
@@ -178,7 +179,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                             } else {
                                 false
                             };
-                            
+
                             let button_style = if is_noted {
                                 "width: 40px; height: 40px; font-size: 12px; font-weight: bold; \
                                  border: 2px solid #FFC107; background-color: #FFF9C4; color: #F57F17; \
@@ -189,7 +190,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                  border-radius: 4px; cursor: pointer; transition: all 0.2s; \
                                  hover:background-color: #e3f2fd;"
                             };
-                            
+
                             rsx! {
                                 button {
                                     style: "{button_style}",
@@ -222,7 +223,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                         }
                     }
                 }
-                
+
                 // Note Done button
                 div {
                     style: "margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px;",
@@ -241,7 +242,7 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                 }
             }
         }
-        
+
         // Click outside to close popup
         if *popup_visible.read() {
             div {
@@ -262,201 +263,199 @@ pub fn UndoRedoControls(game: Signal<SudokuGame>) -> Element {
     let game_state = game.read();
     let can_undo = game_state.can_undo();
     let can_redo = game_state.can_redo();
-    
+
     rsx! {
-        div {
-            style: "display: flex; justify-content: center; gap: 15px; margin-top: 15px;",
+            div {
+                style: "display: flex; justify-content: center; gap: 15px; margin-top: 15px;",
 
-            button {
-                style: format!(
-                    "padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: {}; transition: all 0.3s; {}",
-                    if can_undo { "pointer" } else { "not-allowed" },
-                    if can_undo {
-                        "background-color: #2196F3; color: white;"
-                    } else {
-                        "background-color: #ccc; color: #666;"
-                    }
-                ),
-                disabled: !can_undo,
-                onclick: {
-                    let mut game = game.clone();
-                    move |_| {
-                        game.write().undo();
-                    }
-                },
-                "↶ Undo (↑/←)"
-            }
+                button {
+                    style: format!(
+                        "padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: {}; transition: all 0.3s; {}",
+                        if can_undo { "pointer" } else { "not-allowed" },
+                        if can_undo {
+                            "background-color: #2196F3; color: white;"
+                        } else {
+                            "background-color: #ccc; color: #666;"
+                        }
+                    ),
+                    disabled: !can_undo,
+                    onclick: {
+                        let mut game = game.clone();
+                        move |_| {
+                            game.write().undo();
+                        }
+                    },
+    {t!("undo")}
+                }
 
-            button {
-                style: format!(
-                    "padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: {}; transition: all 0.3s; {}",
-                    if can_redo { "pointer" } else { "not-allowed" },
-                    if can_redo {
-                        "background-color: #4CAF50; color: white;"
-                    } else {
-                        "background-color: #ccc; color: #666;"
-                    }
-                ),
-                disabled: !can_redo,
-                onclick: {
-                    let mut game = game.clone();
-                    move |_| {
-                        game.write().redo();
-                    }
-                },
-                "↷ Redo (↓/→)"
+                button {
+                    style: format!(
+                        "padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: {}; transition: all 0.3s; {}",
+                        if can_redo { "pointer" } else { "not-allowed" },
+                        if can_redo {
+                            "background-color: #4CAF50; color: white;"
+                        } else {
+                            "background-color: #ccc; color: #666;"
+                        }
+                    ),
+                    disabled: !can_redo,
+                    onclick: {
+                        let mut game = game.clone();
+                        move |_| {
+                            game.write().redo();
+                        }
+                    },
+    {t!("redo")}
+                }
             }
         }
-    }
 }
 
 #[component]
 pub fn MoveLog(game: Signal<SudokuGame>) -> Element {
     let game_state = game.read();
     let move_log = game_state.get_move_log();
-    
+
     rsx! {
-        div {
-            style: "background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-height: 500px; overflow-y: auto;",
-            
-            h3 {
-                style: "margin-top: 0; margin-bottom: 15px; color: #333; font-size: 18px; border-bottom: 2px solid #2196F3; padding-bottom: 8px;",
-                "📋 Move History"
-            }
-            
-            if move_log.is_empty() {
-                div {
-                    style: "text-align: center; color: #666; font-style: italic; padding: 20px;",
-                    "No moves yet. Start playing to see your history!"
+            div {
+                style: "background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-height: 500px; overflow-y: auto;",
+
+                h3 {
+                    style: "margin-top: 0; margin-bottom: 15px; color: #333; font-size: 18px; border-bottom: 2px solid #2196F3; padding-bottom: 8px;",
+    {t!("move-history")}
                 }
-            } else {
-                div {
-                    style: "font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.6;",
-                    
-                    for (index, log_entry) in move_log.iter().enumerate() {
-                        {
-                            let entry_style = if log_entry.starts_with("► ") {
-                                "background-color: #e3f2fd; padding: 8px; margin: 2px 0; border-radius: 4px; border-left: 4px solid #2196F3; font-weight: bold;"
-                            } else if log_entry.starts_with("✓ ") {
-                                "background-color: #f1f8e9; padding: 8px; margin: 2px 0; border-radius: 4px; border-left: 4px solid #4CAF50; color: #2e7d32;"
-                            } else {
-                                "background-color: #f5f5f5; padding: 8px; margin: 2px 0; border-radius: 4px; border-left: 4px solid #ccc; color: #666;"
-                            };
-                            
-                            rsx! {
-                                div {
-                                    key: "{index}",
-                                    style: "{entry_style}",
-                                    "{log_entry}"
+
+                if move_log.is_empty() {
+                    div {
+                        style: "text-align: center; color: #666; font-style: italic; padding: 20px;",
+    {t!("no-moves")}
+                    }
+                } else {
+                    div {
+                        style: "font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.6;",
+
+                        for (index, log_entry) in move_log.iter().enumerate() {
+                            {
+                                let entry_style = if log_entry.starts_with("► ") {
+                                    "background-color: #e3f2fd; padding: 8px; margin: 2px 0; border-radius: 4px; border-left: 4px solid #2196F3; font-weight: bold;"
+                                } else if log_entry.starts_with("✓ ") {
+                                    "background-color: #f1f8e9; padding: 8px; margin: 2px 0; border-radius: 4px; border-left: 4px solid #4CAF50; color: #2e7d32;"
+                                } else {
+                                    "background-color: #f5f5f5; padding: 8px; margin: 2px 0; border-radius: 4px; border-left: 4px solid #ccc; color: #666;"
+                                };
+
+                                rsx! {
+                                    div {
+                                        key: "{index}",
+                                        style: "{entry_style}",
+                                        "{log_entry}"
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                
-                div {
-                    style: "margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; font-size: 12px; color: #666;",
-                    
-                    div { "Legend:" }
-                    div { "► Current position" }
-                    div { "✓ Completed moves" }
-                    div { "○ Future moves (after undo)" }
+
+                    div {
+                        style: "margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; font-size: 12px; color: #666;",
+
+                        div { {t!("legend")} }
+                        div { {t!("current-position")} }
+                        div { {t!("completed-moves")} }
+                        div { {t!("future-moves")} }
+                    }
                 }
             }
         }
-    }
 }
-
-
 
 #[component]
 pub fn DifficultySelector(game: Signal<SudokuGame>) -> Element {
     rsx! {
-        div {
-            style: "display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; \
-                   background-color: white; padding: 15px; border-radius: 10px; \
-                   box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+            div {
+                style: "display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; \
+                       background-color: white; padding: 15px; border-radius: 10px; \
+                       box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
 
-            span {
-                style: "font-weight: bold; color: #333; margin-right: 10px;",
-                "Difficulty:"
-            }
+                span {
+                    style: "font-weight: bold; color: #333; margin-right: 10px;",
+                    {t!("difficulty")}
+                }
 
-            button {
-                style: "padding: 8px 16px; font-size: 14px; background-color: #8BC34A; \
-                       color: white; border: none; border-radius: 5px; cursor: pointer; \
-                       transition: background-color 0.3s;",
-                onclick: {
-                    let mut game = game.clone();
-                    move |_| {
-                        game.write().reset_with_difficulty(Difficulty::VeryEasy);
-                    }
-                },
-                "Very Easy"
-            }
+                button {
+                    style: "padding: 8px 16px; font-size: 14px; background-color: #8BC34A; \
+                           color: white; border: none; border-radius: 5px; cursor: pointer; \
+                           transition: background-color 0.3s;",
+                    onclick: {
+                        let mut game = game.clone();
+                        move |_| {
+                            game.write().reset_with_difficulty(Difficulty::VeryEasy);
+                        }
+                    },
+    {t!("very-easy")}
+                }
 
-            button {
-                style: "padding: 8px 16px; font-size: 14px; background-color: #4CAF50; \
-                       color: white; border: none; border-radius: 5px; cursor: pointer; \
-                       transition: background-color 0.3s;",
-                onclick: {
-                    let mut game = game.clone();
-                    move |_| {
-                        game.write().reset_with_difficulty(Difficulty::Easy);
-                    }
-                },
-                "Easy"
-            }
+                button {
+                    style: "padding: 8px 16px; font-size: 14px; background-color: #4CAF50; \
+                           color: white; border: none; border-radius: 5px; cursor: pointer; \
+                           transition: background-color 0.3s;",
+                    onclick: {
+                        let mut game = game.clone();
+                        move |_| {
+                            game.write().reset_with_difficulty(Difficulty::Easy);
+                        }
+                    },
+    {t!("easy")}
+                }
 
-            button {
-                style: "padding: 8px 16px; font-size: 14px; background-color: #FF9800; \
-                       color: white; border: none; border-radius: 5px; cursor: pointer; \
-                       transition: background-color 0.3s;",
-                onclick: {
-                    let mut game = game.clone();
-                    move |_| {
-                        game.write().reset_with_difficulty(Difficulty::Medium);
-                    }
-                },
-                "Medium"
-            }
+                button {
+                    style: "padding: 8px 16px; font-size: 14px; background-color: #FF9800; \
+                           color: white; border: none; border-radius: 5px; cursor: pointer; \
+                           transition: background-color 0.3s;",
+                    onclick: {
+                        let mut game = game.clone();
+                        move |_| {
+                            game.write().reset_with_difficulty(Difficulty::Medium);
+                        }
+                    },
+    {t!("medium")}
+                }
 
-            button {
-                style: "padding: 8px 16px; font-size: 14px; background-color: #f44336; \
-                       color: white; border: none; border-radius: 5px; cursor: pointer; \
-                       transition: background-color 0.3s;",
-                onclick: {
-                    let mut game = game.clone();
-                    move |_| {
-                        game.write().reset_with_difficulty(Difficulty::Hard);
-                    }
-                },
-                "Hard"
+                button {
+                    style: "padding: 8px 16px; font-size: 14px; background-color: #f44336; \
+                           color: white; border: none; border-radius: 5px; cursor: pointer; \
+                           transition: background-color 0.3s;",
+                    onclick: {
+                        let mut game = game.clone();
+                        move |_| {
+                            game.write().reset_with_difficulty(Difficulty::Hard);
+                        }
+                    },
+    {t!("hard")}
+                }
             }
         }
-    }
 }
 
 #[component]
 pub fn GameControls(game: Signal<SudokuGame>) -> Element {
     rsx! {
-        div {
-            style: "display: flex; justify-content: center; gap: 15px; margin-bottom: 20px;",
+            div {
+                style: "display: flex; justify-content: center; gap: 15px; margin-bottom: 20px;",
 
-            button {
-                style: "padding: 10px 20px; font-size: 16px; background-color: #FF9800; \
-                       color: white; border: none; border-radius: 5px; cursor: pointer; \
-                       transition: background-color 0.3s;",
-                onclick: {
-                    let mut game = game.clone();
-                    move |_| {
-                        game.write().solve_one_cell();
-                    }
-                },
-                "💡 Hint"
+                button {
+                    style: "padding: 10px 20px; font-size: 16px; background-color: #FF9800; \
+                           color: white; border: none; border-radius: 5px; cursor: pointer; \
+                           transition: background-color 0.3s;",
+                    onclick: {
+                        let mut game = game.clone();
+                        move |_| {
+                            game.write().solve_one_cell();
+                        }
+                    },
+    {t!("hint")}
+                }
             }
         }
-    }
 }
 
 #[component]
@@ -467,19 +466,19 @@ pub fn Instructions() -> Element {
                    text-align: left; background-color: white; padding: 20px; border-radius: 10px; \
                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
 
-            h3 { "How to Play:" }
+            h3 { {t!("instructions-title")} }
             ul {
-                li { "Click on an empty cell to select it (highlighted in blue)" }
-                li { "Use keyboard numbers (1-9) or click on empty cells to open number picker" }
-                li { "Press Delete, Backspace, or 0 to clear the selected cell" }
-                li { "Use arrow keys (↑/↓ or ←/→) to undo/redo moves" }
-                li { "Each row, column, and 3×3 box must contain all numbers 1-9" }
-                li { "Dark gray cells are given numbers and cannot be changed" }
-                li { "Light blue cells show your input numbers" }
-                li { "Red cells with '!' indicate conflicts that need to be resolved" }
-                li { "Click '💡 Hint' to get help with one cell" }
-                li { "Use 'Undo' and 'Redo' buttons or keyboard shortcuts to navigate your move history" }
-                li { "View your complete move history in the log panel" }
+                li { {t!("instruction-1")} }
+                li { {t!("instruction-2")} }
+                li { {t!("instruction-3")} }
+                li { {t!("instruction-4")} }
+                li { {t!("instruction-5")} }
+                li { {t!("instruction-6")} }
+                li { {t!("instruction-7")} }
+                li { {t!("instruction-8")} }
+                li { {t!("instruction-9")} }
+                li { {t!("instruction-10")} }
+                li { {t!("instruction-11")} }
             }
         }
     }
@@ -493,38 +492,38 @@ pub fn WinMessage() -> Element {
             .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
             .unwrap_or_else(|_| "Player".to_string())
     });
-    
+
     rsx! {
-        div {
-            style: "background: linear-gradient(45deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4, #FFEAA7); color: white; padding: 30px; border-radius: 15px; margin-bottom: 20px; font-size: 24px; font-weight: bold; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.3); position: relative; overflow: hidden;",
-            
             div {
-                style: "font-size: 28px; margin-bottom: 10px;",
-                "🎉 CONGRATULATIONS! 🎉"
-            }
-            
-            div {
-                style: "font-size: 20px; margin-bottom: 10px;",
-                match player_name.read().as_ref() {
-                    Some(name) => format!("Well done, {}!", name),
-                    None => "Well done!".to_string()
+                style: "background: linear-gradient(45deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4, #FFEAA7); color: white; padding: 30px; border-radius: 15px; margin-bottom: 20px; font-size: 24px; font-weight: bold; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.3); position: relative; overflow: hidden;",
+
+                div {
+                    style: "font-size: 28px; margin-bottom: 10px;",
+    {t!("congratulations")}
+                }
+
+                div {
+                    style: "font-size: 20px; margin-bottom: 10px;",
+                    match player_name.read().as_ref() {
+                        Some(name) => format!("{}, {}!", t!("well-done"), name),
+                        None => t!("well-done").to_string()
+                    }
+                }
+
+                div {
+                    style: "font-size: 18px; margin-bottom: 15px;",
+    {t!("puzzle-solved")}
+                }
+
+                div {
+                    style: "font-size: 32px;",
+                    "🏆 🌟 ✨ 🎊 🎈"
+                }
+
+                div {
+                    style: "font-size: 14px; margin-top: 10px; opacity: 0.9;",
+    {t!("ready-challenge")}
                 }
             }
-            
-            div {
-                style: "font-size: 18px; margin-bottom: 15px;",
-                "You solved the puzzle like a true Sudoku master!"
-            }
-            
-            div {
-                style: "font-size: 32px;",
-                "🏆 🌟 ✨ 🎊 🎈"
-            }
-            
-            div {
-                style: "font-size: 14px; margin-top: 10px; opacity: 0.9;",
-                "Amazing work! Ready for another challenge?"
-            }
         }
-    }
 }
