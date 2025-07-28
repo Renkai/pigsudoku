@@ -505,14 +505,14 @@ pub fn WinMessage() -> Element {
                 div {
                     style: "font-size: 20px; margin-bottom: 10px;",
                     match player_name.read().as_ref() {
-                        Some(name) => format!("{}, {}!", t!("well-done"), name),
-                        None => t!("well-done").to_string()
+                        Some(name) => format!("{} {}!", t!("well-done"), name),
+                        None => t!("well-done-anonymous")
                     }
                 }
 
                 div {
                     style: "font-size: 18px; margin-bottom: 15px;",
-    {t!("puzzle-solved")}
+    {t!("sudoku-master")}
                 }
 
                 div {
@@ -522,7 +522,7 @@ pub fn WinMessage() -> Element {
 
                 div {
                     style: "font-size: 14px; margin-top: 10px; opacity: 0.9;",
-    {t!("ready-challenge")}
+    {t!("amazing-work")}
                 }
             }
         }

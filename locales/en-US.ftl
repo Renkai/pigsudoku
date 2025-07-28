@@ -39,7 +39,7 @@ instruction-11 = View your complete move history in the log panel
 
 # Win Message
 congratulations = 🎉 CONGRATULATIONS! 🎉
-well-done = Well done, {$name}!
+well-done = Well done,
 well-done-anonymous = Well done!
 sudoku-master = You solved the puzzle like a true Sudoku master!
 amazing-work = Amazing work! Ready for another challenge?
