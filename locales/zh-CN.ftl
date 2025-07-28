@@ -39,7 +39,7 @@ instruction-11 = 在日志面板中查看你的完整移动历史
 
 # Win Message
 congratulations = 🎉 恭喜你！🎉
-well-done = 干得好，{$name}！
+well-done = 干得好，
 well-done-anonymous = 干得好！
 sudoku-master = 你像真正的数独大师一样解决了这个谜题！
 amazing-work = 太棒了！准备好迎接另一个挑战了吗？
