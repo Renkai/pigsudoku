@@ -22,10 +22,11 @@ A Sudoku game built with the Dioxus framework in Rust, by vibe coding.
 - [x] when an empty cell clicked, pop up a option cube with number 1-9, when a number clicked, fill the cell with the number, and close the cube. During the pop up of the cube, keyboard input shall be still acceptable.
 - [x] It seems when the player type or chose the wrong anwser, the game board will block what the player typed. Don't block, let the player keep inputing until there are obvious errors, when the error happened give some alert mark
 - [x] In the right position of the puzzle field, make a log field, show the user's activities, like manually input or hint input of position and number. With the log, the player shall be able to revert or redo every step. We shall have buttons of revert and redo, also treat keyboard input left arrow and up arrow as revert, and right arrow and down arrow as redo.
-- Add a new feature: note, allow the player to fill all the data 1-9, the noted number shall be filled in smaller size, like all the 9 numbers together can be filled in one cell.
+- [x] Add a new feature: note, allow the player to fill all the data 1-9, the noted number shall be filled in smaller size, like all the 9 numbers together can be filled in one cell.
   - in the popup box, player can right click to note a number, after right click, the corresponding popup cell change it's color to yellow, and the number filled in the cell change to smaller size, the popup box don't close instantly, it only closes when the player click the "note done" button in the popup, or left click a number to show it's already filled, or click Enter key, which shall act same as left click the "note done" button.
   - the noted numbers shall not be considered as the answer, when the player click the "solve" button, the noted numbers shall be ignored.
   - when the user fill the cell with a number, the note shall be visiblely cleared, but data still exists. when the user clear the filled cell, we shall be able to see it again.
+- instead of note and fill in the popup box, we can make the box be solid in the right part of the game zone, below the log board. then the box can have a note button, when it's toggled, left click on the number in the box is to note, when it's toggled off, left click on the number in the box is to fill in the number, the toggle status shall be visible via color
 - give user a progress bar, when it takes a long time to generate puzzle
 - when give hint number, also give text format reason
   - read https://www.sudokudragon.com/sudokututorials.htm

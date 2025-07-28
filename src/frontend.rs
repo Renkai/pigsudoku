@@ -6,10 +6,6 @@ use dioxus_i18n::t;
 
 #[component]
 pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
-    let popup_visible = use_signal(|| false);
-    let popup_position = use_signal(|| (0, 0));
-    let popup_cell = use_signal(|| None::<(usize, usize)>);
-    let noted_numbers = use_signal(|| std::collections::HashSet::<u8>::new());
 
     let game_state = game.read();
     rsx! {
@@ -85,22 +81,8 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                     style: "{cell_style}",
                                     onclick: {
                                         let mut game = game.clone();
-                                        let mut popup_visible = popup_visible.clone();
-                                        let mut popup_position = popup_position.clone();
-                                        let mut popup_cell = popup_cell.clone();
-                                        move |event: Event<MouseData>| {
+                                        move |_| {
                                             game.write().select_cell(row, col);
-
-                                            // Show popup for empty cells or cells with conflicts (if not initial)
-                                            if cell_value.is_none() || (has_conflict && !is_initial) {
-                                                let client_x = event.client_coordinates().x;
-                                                let client_y = event.client_coordinates().y;
-                                                popup_position.set((client_x as i32, client_y as i32));
-                                                popup_cell.set(Some((row, col)));
-                                                popup_visible.set(true);
-                                            } else {
-                                                popup_visible.set(false);
-                                            }
                                         }
                                     },
 
@@ -148,111 +130,6 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                         }
                     }
                 }
-            }
-        }
-
-        // Number picker popup
-        if *popup_visible.read() {
-            div {
-                style: format!(
-                    "position: fixed; left: {}px; top: {}px; z-index: 1000; \
-                     background: white; border: 2px solid #333; border-radius: 8px; \
-                     box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 8px;",
-                    popup_position.read().0, popup_position.read().1
-                ),
-
-                // Instructions
-                div {
-                    style: "text-align: center; font-size: 12px; color: #666; margin-bottom: 8px; \
-                           border-bottom: 1px solid #eee; padding-bottom: 8px;",
-                    "Left click: Fill number | Right click: Toggle note"
-                }
-
-                // Number grid
-                div {
-                    style: "display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;",
-
-                    for num in 1..=9 {
-                        {
-                            let is_noted = if let Some((row, col)) = *popup_cell.read() {
-                                game_state.get_notes(row, col).contains(&num)
-                            } else {
-                                false
-                            };
-
-                            let button_style = if is_noted {
-                                "width: 40px; height: 40px; font-size: 12px; font-weight: bold; \
-                                 border: 2px solid #FFC107; background-color: #FFF9C4; color: #F57F17; \
-                                 border-radius: 4px; cursor: pointer; transition: all 0.2s;"
-                            } else {
-                                "width: 40px; height: 40px; font-size: 16px; font-weight: bold; \
-                                 border: 1px solid #2196F3; background-color: white; color: #2196F3; \
-                                 border-radius: 4px; cursor: pointer; transition: all 0.2s; \
-                                 hover:background-color: #e3f2fd;"
-                            };
-
-                            rsx! {
-                                button {
-                                    style: "{button_style}",
-                                    onclick: {
-                                        let mut game = game.clone();
-                                        let mut popup_visible = popup_visible.clone();
-                                        let popup_cell = popup_cell.clone();
-                                        move |_| {
-                                            if let Some((row, col)) = *popup_cell.read() {
-                                                game.write().select_cell(row, col);
-                                                game.write().input_number(num);
-                                            }
-                                            popup_visible.set(false);
-                                        }
-                                    },
-                                    oncontextmenu: {
-                                        let mut game = game.clone();
-                                        let popup_cell = popup_cell.clone();
-                                        move |event: Event<MouseData>| {
-                                            event.prevent_default();
-                                            if let Some((row, col)) = *popup_cell.read() {
-                                                game.write().select_cell(row, col);
-                                                game.write().toggle_note(row, col, num);
-                                            }
-                                        }
-                                    },
-                                    "{num}"
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Note Done button
-                div {
-                    style: "margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px;",
-                    button {
-                        style: "width: 100%; padding: 8px; font-size: 14px; background-color: #4CAF50; \
-                               color: white; border: none; border-radius: 4px; cursor: pointer; \
-                               transition: background-color 0.3s;",
-                        onclick: {
-                            let mut popup_visible = popup_visible.clone();
-                            move |_| {
-                                popup_visible.set(false);
-                            }
-                        },
-                        "✓ Note Done"
-                    }
-                }
-            }
-        }
-
-        // Click outside to close popup
-        if *popup_visible.read() {
-            div {
-                style: "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 999;",
-                onclick: {
-                    let mut popup_visible = popup_visible.clone();
-                    move |_| {
-                        popup_visible.set(false);
-                    }
-                },
             }
         }
     }
@@ -309,6 +186,66 @@ pub fn UndoRedoControls(game: Signal<SudokuGame>) -> Element {
                 }
             }
         }
+}
+
+#[component]
+pub fn NumberPanel(game: Signal<SudokuGame>) -> Element {
+    let mut is_note_mode = use_signal(|| false);
+    
+    rsx! {
+        div {
+            style: "background-color: #f8f9fa; border: 2px solid #dee2e6; border-radius: 8px; padding: 15px; margin-top: 20px;",
+            
+            // Toggle button for note/fill mode
+            div {
+                style: "margin-bottom: 15px; text-align: center;",
+                button {
+                    style: format!(
+                        "padding: 8px 16px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: all 0.2s; {}",
+                        if is_note_mode() {
+                            "background-color: #ffc107; color: #000;"
+                        } else {
+                            "background-color: #007bff; color: white;"
+                        }
+                    ),
+                    onclick: move |_| {
+                        is_note_mode.set(!is_note_mode());
+                    },
+                    if is_note_mode() {
+                        {t!("note-mode")}
+                    } else {
+                        {t!("fill-mode")}
+                    }
+                }
+            }
+            
+            // Number grid (3x3)
+            div {
+                style: "display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;",
+                
+                for num in 1..=9 {
+                    button {
+                        style: "width: 50px; height: 50px; border: 2px solid #6c757d; border-radius: 6px; \
+                               background-color: white; font-size: 18px; font-weight: bold; cursor: pointer; \
+                               transition: all 0.2s; display: flex; align-items: center; justify-content: center;",
+                        onmouseenter: move |_| {},
+                        onmouseleave: move |_| {},
+                        onclick: move |_| {
+                            let mut game_state = game.write();
+                            if let Some((row, col)) = game_state.selected_cell {
+                                if is_note_mode() {
+                                    game_state.toggle_note(row, col, num);
+                                } else {
+                                    game_state.input_number(num);
+                                }
+                            }
+                        },
+                        "{num}"
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[component]

@@ -8,7 +8,7 @@ mod frontend;
 
 use backend::SudokuGame;
 use frontend::{
-    DifficultySelector, GameControls, Instructions, MoveLog, SudokuGrid, UndoRedoControls,
+    DifficultySelector, GameControls, Instructions, MoveLog, NumberPanel, SudokuGrid, UndoRedoControls,
     WinMessage,
 };
 
@@ -138,6 +138,7 @@ fn AppWithLocale(
 
                 div {
                     style: "min-width: 300px;",
+                    NumberPanel { game: game }
                     MoveLog { game: game }
                 }
             }

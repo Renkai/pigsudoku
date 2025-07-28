@@ -13,6 +13,8 @@ hint = 💡 提示
 undo = ↶ 撤销 (↑/←)
 redo = ↷ 重做 (↓/→)
 language-switch = English
+note-mode = 笔记模式
+fill-mode = 填入模式
 
 # Move History
 move-history = 📋 移动历史
