@@ -13,6 +13,8 @@ hint = 💡 Hint
 undo = ↶ Undo (↑/←)
 redo = ↷ Redo (↓/→)
 language-switch = 中文
+note-mode = Note Mode
+fill-mode = Fill Mode
 
 # Move History
 move-history = 📋 Move History
