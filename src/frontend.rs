@@ -2,6 +2,7 @@
 
 use crate::backend::{SudokuGame, Difficulty};
 use dioxus::prelude::*;
+use dioxus_i18n::t;
 
 #[component]
 pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
@@ -284,7 +285,7 @@ pub fn UndoRedoControls(game: Signal<SudokuGame>) -> Element {
                         game.write().undo();
                     }
                 },
-                "↶ Undo (↑/←)"
+{t!("undo")}
             }
 
             button {
@@ -304,7 +305,7 @@ pub fn UndoRedoControls(game: Signal<SudokuGame>) -> Element {
                         game.write().redo();
                     }
                 },
-                "↷ Redo (↓/→)"
+{t!("redo")}
             }
         }
     }
@@ -321,13 +322,13 @@ pub fn MoveLog(game: Signal<SudokuGame>) -> Element {
             
             h3 {
                 style: "margin-top: 0; margin-bottom: 15px; color: #333; font-size: 18px; border-bottom: 2px solid #2196F3; padding-bottom: 8px;",
-                "📋 Move History"
+{t!("move-history")}
             }
             
             if move_log.is_empty() {
                 div {
                     style: "text-align: center; color: #666; font-style: italic; padding: 20px;",
-                    "No moves yet. Start playing to see your history!"
+{t!("no-moves")}
                 }
             } else {
                 div {
@@ -357,10 +358,10 @@ pub fn MoveLog(game: Signal<SudokuGame>) -> Element {
                 div {
                     style: "margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; font-size: 12px; color: #666;",
                     
-                    div { "Legend:" }
-                    div { "► Current position" }
-                    div { "✓ Completed moves" }
-                    div { "○ Future moves (after undo)" }
+                    div { {t!("legend")} }
+                    div { {t!("current-position")} }
+                    div { {t!("completed-moves")} }
+                    div { {t!("future-moves")} }
                 }
             }
         }
@@ -379,7 +380,7 @@ pub fn DifficultySelector(game: Signal<SudokuGame>) -> Element {
 
             span {
                 style: "font-weight: bold; color: #333; margin-right: 10px;",
-                "Difficulty:"
+                {t!("difficulty")}
             }
 
             button {
@@ -392,7 +393,7 @@ pub fn DifficultySelector(game: Signal<SudokuGame>) -> Element {
                         game.write().reset_with_difficulty(Difficulty::VeryEasy);
                     }
                 },
-                "Very Easy"
+{t!("very-easy")}
             }
 
             button {
@@ -405,7 +406,7 @@ pub fn DifficultySelector(game: Signal<SudokuGame>) -> Element {
                         game.write().reset_with_difficulty(Difficulty::Easy);
                     }
                 },
-                "Easy"
+{t!("easy")}
             }
 
             button {
@@ -418,7 +419,7 @@ pub fn DifficultySelector(game: Signal<SudokuGame>) -> Element {
                         game.write().reset_with_difficulty(Difficulty::Medium);
                     }
                 },
-                "Medium"
+{t!("medium")}
             }
 
             button {
@@ -431,7 +432,7 @@ pub fn DifficultySelector(game: Signal<SudokuGame>) -> Element {
                         game.write().reset_with_difficulty(Difficulty::Hard);
                     }
                 },
-                "Hard"
+{t!("hard")}
             }
         }
     }
@@ -453,7 +454,7 @@ pub fn GameControls(game: Signal<SudokuGame>) -> Element {
                         game.write().solve_one_cell();
                     }
                 },
-                "💡 Hint"
+{t!("hint")}
             }
         }
     }
@@ -467,19 +468,19 @@ pub fn Instructions() -> Element {
                    text-align: left; background-color: white; padding: 20px; border-radius: 10px; \
                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
 
-            h3 { "How to Play:" }
+            h3 { {t!("instructions-title")} }
             ul {
-                li { "Click on an empty cell to select it (highlighted in blue)" }
-                li { "Use keyboard numbers (1-9) or click on empty cells to open number picker" }
-                li { "Press Delete, Backspace, or 0 to clear the selected cell" }
-                li { "Use arrow keys (↑/↓ or ←/→) to undo/redo moves" }
-                li { "Each row, column, and 3×3 box must contain all numbers 1-9" }
-                li { "Dark gray cells are given numbers and cannot be changed" }
-                li { "Light blue cells show your input numbers" }
-                li { "Red cells with '!' indicate conflicts that need to be resolved" }
-                li { "Click '💡 Hint' to get help with one cell" }
-                li { "Use 'Undo' and 'Redo' buttons or keyboard shortcuts to navigate your move history" }
-                li { "View your complete move history in the log panel" }
+                li { {t!("instruction-1")} }
+                li { {t!("instruction-2")} }
+                li { {t!("instruction-3")} }
+                li { {t!("instruction-4")} }
+                li { {t!("instruction-5")} }
+                li { {t!("instruction-6")} }
+                li { {t!("instruction-7")} }
+                li { {t!("instruction-8")} }
+                li { {t!("instruction-9")} }
+                li { {t!("instruction-10")} }
+                li { {t!("instruction-11")} }
             }
         }
     }
@@ -500,20 +501,20 @@ pub fn WinMessage() -> Element {
             
             div {
                 style: "font-size: 28px; margin-bottom: 10px;",
-                "🎉 CONGRATULATIONS! 🎉"
+{t!("congratulations")}
             }
             
             div {
                 style: "font-size: 20px; margin-bottom: 10px;",
                 match player_name.read().as_ref() {
-                    Some(name) => format!("Well done, {}!", name),
-                    None => "Well done!".to_string()
+                    Some(name) => format!("{}, {}!", t!("well-done"), name),
+                    None => t!("well-done").to_string()
                 }
             }
             
             div {
                 style: "font-size: 18px; margin-bottom: 15px;",
-                "You solved the puzzle like a true Sudoku master!"
+{t!("puzzle-solved")}
             }
             
             div {
@@ -523,7 +524,7 @@ pub fn WinMessage() -> Element {
             
             div {
                 style: "font-size: 14px; margin-top: 10px; opacity: 0.9;",
-                "Amazing work! Ready for another challenge?"
+{t!("ready-challenge")}
             }
         }
     }
