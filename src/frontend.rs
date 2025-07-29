@@ -53,7 +53,14 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                     cell_style.push_str(" background-color: #ffebee; color: #d32f2f; font-weight: 600; border: 2px solid #f44336;");
                                 }
                             } else if is_selected {
-                                if is_initial {
+                                if is_highlighted {
+                                    // Selected and highlighted: darker yellow
+                                    if is_initial {
+                                        cell_style.push_str(" background-color: #ffc107; color: #333; font-weight: 900;");
+                                    } else {
+                                        cell_style.push_str(" background-color: #ffc107; color: #1976D2; font-weight: 600;");
+                                    }
+                                } else if is_initial {
                                     cell_style.push_str(" background-color: #ffecb3; color: #333; font-weight: 900;");
                                 } else {
                                     cell_style.push_str(" background-color: #e3f2fd; color: #1976D2;");
@@ -66,10 +73,10 @@ pub fn SudokuGrid(game: Signal<SudokuGame>) -> Element {
                                     cell_style.push_str(" background-color: #fff9c4; color: #1976D2; font-weight: 600;");
                                 }
                             } else if is_initial {
-                                // Given numbers: darker background, bold black text
-                                cell_style.push_str(" background-color: #e0e0e0; color: #000; font-weight: 900;");
+                                // Given numbers: same background as filled cells, bold black text
+                                cell_style.push_str(" background-color: #f8f9fa; color: #000; font-weight: 900;");
                             } else if cell_value.is_some() {
-                                // User input numbers: light background, blue text
+                                // User input numbers: same background as preset cells, blue text
                                 cell_style.push_str(" background-color: #f8f9fa; color: #1976D2; font-weight: 600;");
                             } else {
                                 // Empty cells: white background
