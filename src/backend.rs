@@ -1,7 +1,5 @@
 //! Backend module containing Sudoku game logic and state management
 
-use std::collections::HashSet;
-
 #[derive(Clone, PartialEq, Debug)]
 pub enum MoveType {
     Input,
@@ -37,14 +35,7 @@ impl Difficulty {
         }
     }
 
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            Difficulty::VeryEasy => "Very Easy",
-            Difficulty::Easy => "Easy",
-            Difficulty::Medium => "Medium",
-            Difficulty::Hard => "Hard",
-        }
-    }
+
 }
 
 #[derive(Clone, PartialEq)]
@@ -248,9 +239,6 @@ impl SudokuGame {
         self.highlighted_number = self.grid[row][col];
     }
 
-    pub fn set_highlighted_number(&mut self, num: Option<u8>) {
-        self.highlighted_number = num;
-    }
 
     pub fn is_cell_highlighted(&self, row: usize, col: usize) -> bool {
         if let Some(highlighted) = self.highlighted_number {
@@ -331,9 +319,6 @@ impl SudokuGame {
         }
     }
 
-    pub fn reset(&mut self) {
-        *self = Self::new();
-    }
 
     pub fn reset_with_difficulty(&mut self, difficulty: Difficulty) {
         *self = Self::new_with_difficulty(difficulty);
@@ -429,22 +414,6 @@ impl SudokuGame {
         false
     }
 
-    fn has_valid_solution(grid: &[[Option<u8>; 9]; 9]) -> bool {
-        // Simple check: ensure no conflicts exist
-        for row in 0..9 {
-            for col in 0..9 {
-                if let Some(num) = grid[row][col] {
-                    // Temporarily remove the number and check if it's valid
-                    let mut temp_grid = *grid;
-                    temp_grid[row][col] = None;
-                    if !Self::is_valid_placement(&temp_grid, row, col, num) {
-                        return false;
-                    }
-                }
-            }
-        }
-        true
-    }
 
     fn has_unique_solution(grid: &[[Option<u8>; 9]; 9]) -> bool {
         let mut solution_count = 0;
@@ -670,7 +639,5 @@ impl SudokuGame {
         self.notes[row][col].clear();
     }
 
-    pub fn has_notes(&self, row: usize, col: usize) -> bool {
-        !self.notes[row][col].is_empty()
-    }
+
 }
