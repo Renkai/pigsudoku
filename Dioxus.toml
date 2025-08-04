@@ -1,0 +1,30 @@
+[application]
+
+# App (Project) Name
+name = "pigsudoku"
+
+[bundle]
+identifier = "com.pigsudoku"
+publisher = "PigSudoku"
+
+[web.app]
+# HTML title tag content
+title = "PigSudoku - Sudoku Game"
+
+[web.watcher]
+# CSS file to reload
+reload_html = true
+watch_path = ["src", "assets"]
+
+[web.resource]
+# Web-specific resource configuration
+dev = { style = ["assets/main.css"] }
+
+[desktop.app]
+# Desktop window configuration
+title = "PigSudoku"
+
+[desktop.watcher]
+# Desktop-specific watcher configuration
+reload_html = true
+watch_path = ["src", "assets"]
