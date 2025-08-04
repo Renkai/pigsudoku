@@ -1,5 +1,52 @@
 //! Backend module containing Sudoku game logic and state management
 
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
+use rand::{Rng, SeedableRng};
+use rand::rngs::StdRng;
+
+#[cfg(target_arch = "wasm32")]
+use web_time::{SystemTime, UNIX_EPOCH};
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::{SystemTime, UNIX_EPOCH};
+
+// Platform-specific time functions
+#[cfg(target_arch = "wasm32")]
+fn get_timestamp_seed() -> usize {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as usize
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn get_timestamp_seed() -> usize {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as usize
+}
+
+#[cfg(target_arch = "wasm32")]
+fn get_timestamp_string() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn get_timestamp_string() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string()
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum MoveType {
     Input,
@@ -53,6 +100,8 @@ pub struct SudokuGame {
     // Undo/Redo system
     pub move_history: Vec<GameMove>,
     pub current_move_index: Option<usize>,
+    // Move counter for timestamps
+    move_counter: usize,
 }
 
 impl SudokuGame {
@@ -85,6 +134,7 @@ impl SudokuGame {
             box_available: Default::default(),
             move_history: Vec::new(),
             current_move_index: None,
+            move_counter: 0,
         };
         game.initialize_constraint_sets();
         game
@@ -98,11 +148,9 @@ impl SudokuGame {
                     // Try numbers 1-9 in random order
                     let mut numbers: Vec<u8> = (1..=9).collect();
 
-                    // Simple shuffle using current time as seed
-                    let seed = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_nanos() as usize;
+                    // Simple shuffle using time-based seed for better randomness
+                    let base_seed = get_timestamp_seed();
+                    let seed = (base_seed + row * 13 + col * 7 + row * col * 3) % 1000;
 
                     for i in 0..numbers.len() {
                         let j = (seed + i * 7) % numbers.len();
@@ -166,10 +214,17 @@ impl SudokuGame {
         mut solution: [[Option<u8>; 9]; 9],
         difficulty: Difficulty,
     ) -> [[Option<u8>; 9]; 9] {
-        let seed = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as usize;
+        // Use time-based seed combined with grid hash for better randomness
+        let time_seed = get_timestamp_seed();
+        let mut seed = time_seed;
+        for row in 0..9 {
+            for col in 0..9 {
+                if let Some(val) = solution[row][col] {
+                    seed = seed.wrapping_mul(31).wrapping_add(val as usize * (row + 1) * (col + 1));
+                }
+            }
+        }
+        seed = seed.wrapping_add(12345); // Add some variation
 
         let mut positions: Vec<(usize, usize)> = Vec::new();
         for row in 0..9 {
@@ -493,11 +548,8 @@ impl SudokuGame {
         new_value: Option<u8>,
         move_type: MoveType,
     ) {
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-            .to_string();
+        self.move_counter += 1;
+        let timestamp = get_timestamp_string();
 
         let game_move = GameMove {
             row,
