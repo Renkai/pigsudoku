@@ -33,8 +33,11 @@ jobs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     
+    - name: Install cargo-binstall
+      run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+
     - name: Install Dioxus CLI
-      run: cargo install dioxus-cli
+      run: cargo binstall dx --no-confirm
     
     - name: Build for web
       run: dx build --platform web --release
