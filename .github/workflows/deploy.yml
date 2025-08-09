@@ -51,6 +51,9 @@ jobs:
       run: |
         mkdir -p dist
         cp -r target/dx/pigsudoku/release/web/public/* dist/
+        # Copy configuration files for proper MIME types
+        cp .github/templates/.nojekyll dist/
+        cp .github/templates/_headers dist/
     
     - name: Upload artifact
       if: github.ref == 'refs/heads/master'

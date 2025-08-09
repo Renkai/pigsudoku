@@ -1,0 +1,14 @@
+# Configure MIME types for GitHub Pages
+# This file ensures JavaScript and WASM files are served with correct Content-Type headers
+
+/assets/*.js
+  Content-Type: application/javascript
+
+/assets/*.wasm
+  Content-Type: application/wasm
+
+# Security headers
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  X-XSS-Protection: 1; mode=block

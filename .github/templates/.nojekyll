@@ -1,0 +1,3 @@
+# Disable Jekyll processing for GitHub Pages
+# This file prevents GitHub Pages from processing files with Jekyll,
+# which can interfere with JavaScript module loading in WASM applications
