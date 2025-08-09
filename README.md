@@ -27,7 +27,7 @@ A Sudoku game built with the Dioxus framework in Rust, by vibe coding.
   - the noted numbers shall not be considered as the answer, when the player click the "solve" button, the noted numbers shall be ignored.
   - when the user fill the cell with a number, the note shall be visiblely cleared, but data still exists. when the user clear the filled cell, we shall be able to see it again.
 - [x] instead of note and fill in the popup box, we can make the box be solid in the right part of the game zone, below the log board. then the box can have a note button, when it's toggled, left click on the number in the box is to note, when it's toggled off, left click on the number in the box is to fill in the number, the toggle status shall be visible via color
-- set up a web version, can serve via github pages
+- [x] set up a web version, can serve via github pages
 - give user a progress bar, when it takes a long time to generate puzzle
 - when give hint number, also give text format reason
   - read https://www.sudokudragon.com/sudokututorials.htm
@@ -42,8 +42,54 @@ A Sudoku game built with the Dioxus framework in Rust, by vibe coding.
 ### Development
 
 ```bash
-# Run the app in development mode
+# Run the app in development mode (desktop)
 cargo run
+
+# Build for web
+dx build --platform web --release
+
+# Serve web build locally
+cd target/dx/pigsudoku/release/web/public && python3 -m http.server 8000
+```
+
+### GitHub Pages Deployment
+
+This project is configured to automatically deploy to GitHub Pages when you push to the main branch.
+
+#### Setup Instructions:
+
+1. **Enable GitHub Pages in your repository:**
+   - Go to your repository settings
+   - Navigate to "Pages" in the left sidebar
+   - Under "Source", select "GitHub Actions"
+
+2. **Push to main branch:**
+   ```bash
+   git add .
+   git commit -m "Add GitHub Pages deployment"
+   git push origin main
+   ```
+
+3. **Access your deployed game:**
+   - After the GitHub Action completes, your game will be available at:
+   - `https://[your-username].github.io/[repository-name]/`
+
+#### Manual Build for Web:
+
+If you want to build and deploy manually:
+
+```bash
+# Install Dioxus CLI if not already installed
+cargo install dioxus-cli
+
+# Build for web
+dx build --platform web --release
+
+# Copy files to dist directory
+mkdir -p dist
+cp -r target/dx/pigsudoku/release/web/public/* dist/
+
+# Deploy the dist/ directory to your web server
 ```
 
 ## Project Structure
