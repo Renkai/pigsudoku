@@ -1,6 +1,6 @@
 //! Frontend module containing UI components and styling
 
-use crate::backend::{Difficulty, SudokuGame};
+use crate::game_logic::{Difficulty, SudokuGame};
 use dioxus::prelude::*;
 use dioxus_i18n::t;
 
