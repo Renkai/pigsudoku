@@ -1,4 +1,4 @@
-//! Backend module containing Sudoku game logic and state management
+//! Game logic module containing Sudoku game logic and state management
 
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};

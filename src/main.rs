@@ -3,10 +3,10 @@ use dioxus_i18n::prelude::*;
 use dioxus_i18n::t;
 use dioxus_i18n::unic_langid::langid;
 
-mod backend;
+mod game_logic;
 mod frontend;
 
-use backend::SudokuGame;
+use game_logic::SudokuGame;
 use frontend::{
     DifficultySelector, GameControls, Instructions, MoveLog, NumberPanel, SudokuGrid, UndoRedoControls,
     WinMessage,
