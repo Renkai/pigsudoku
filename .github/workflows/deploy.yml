@@ -2,9 +2,9 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
   workflow_dispatch:
 
 jobs:
@@ -43,23 +43,23 @@ jobs:
       run: dx build --platform web --release
     
     - name: Setup Pages
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/master'
       uses: actions/configure-pages@v5
     
     - name: Copy build files to dist
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/master'
       run: |
         mkdir -p dist
         cp -r target/dx/pigsudoku/release/web/public/* dist/
     
     - name: Upload artifact
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/master'
       uses: actions/upload-pages-artifact@v3
       with:
         path: ./dist
     
     - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/master'
       id: deployment
       uses: actions/deploy-pages@v4
 
