@@ -37,7 +37,7 @@ jobs:
       run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
     - name: Install Dioxus CLI
-      run: cargo binstall dx --no-confirm
+      run: cargo binstall dioxus-cli --no-confirm
     
     - name: Build for web
       run: dx build --platform web --release
