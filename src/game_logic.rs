@@ -1,11 +1,5 @@
 //! Game logic module containing Sudoku game logic and state management
 
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
-use rand::{Rng, SeedableRng};
-use rand::rngs::StdRng;
-
 #[cfg(target_arch = "wasm32")]
 use web_time::{SystemTime, UNIX_EPOCH};
 
@@ -81,8 +75,6 @@ impl Difficulty {
             Difficulty::Hard => (46, 51),     // Keep 30-35 numbers (hard)
         }
     }
-
-
 }
 
 #[derive(Clone, PartialEq)]
@@ -220,7 +212,9 @@ impl SudokuGame {
         for row in 0..9 {
             for col in 0..9 {
                 if let Some(val) = solution[row][col] {
-                    seed = seed.wrapping_mul(31).wrapping_add(val as usize * (row + 1) * (col + 1));
+                    seed = seed
+                        .wrapping_mul(31)
+                        .wrapping_add(val as usize * (row + 1) * (col + 1));
                 }
             }
         }
@@ -293,7 +287,6 @@ impl SudokuGame {
         // Set highlighted number based on the clicked cell's value
         self.highlighted_number = self.grid[row][col];
     }
-
 
     pub fn is_cell_highlighted(&self, row: usize, col: usize) -> bool {
         if let Some(highlighted) = self.highlighted_number {
@@ -373,7 +366,6 @@ impl SudokuGame {
             }
         }
     }
-
 
     pub fn reset_with_difficulty(&mut self, difficulty: Difficulty) {
         *self = Self::new_with_difficulty(difficulty);
@@ -468,7 +460,6 @@ impl SudokuGame {
         // No helpful hint found - puzzle might be too complex or invalid
         false
     }
-
 
     fn has_unique_solution(grid: &[[Option<u8>; 9]; 9]) -> bool {
         let mut solution_count = 0;
@@ -690,6 +681,4 @@ impl SudokuGame {
     pub fn clear_notes(&mut self, row: usize, col: usize) {
         self.notes[row][col].clear();
     }
-
-
 }
