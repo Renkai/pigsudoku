@@ -23,13 +23,13 @@ fn App() -> Element {
     rsx! {
         if current_locale() == langid!("en-US") {
             AppWithLocale {
-                key: "en-US",
+                key: "{current_locale}",
                 locale: langid!("en-US"),
                 current_locale: current_locale
             }
         } else {
             AppWithLocale {
-                key: "zh-CN",
+                key: "{current_locale}",
                 locale: langid!("zh-CN"),
                 current_locale: current_locale
             }
@@ -64,7 +64,7 @@ fn AppWithLocale(
             onkeydown: {
                 let mut game = game.clone();
                 move |event: Event<KeyboardData>| {
-                    use dioxus::events::Key;
+                    use dioxus::prelude::Key;
                     match event.key() {
                         Key::Character(ch) if ch.len() == 1 => {
                             let ch = ch.chars().next().unwrap();
