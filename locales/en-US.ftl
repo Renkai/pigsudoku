@@ -8,6 +8,21 @@ mental-math-title = 🔢 Mental Math Training
 mental-math-coming-soon = Coming soon! Stay tuned.
 back-to-menu = ← Menu
 
+# Mental Math Training
+practice-content = Practice:
+multiplication-table = Multiplication Table (9×9)
+select-exercise-hint = Select a practice on the left to start.
+question-counter = Question
+elapsed-time = Time:
+seconds-suffix = s
+press-enter = Type your answer and press Enter
+esc-hint = Press Esc to restart
+correct-feedback = ✓ Correct!
+wrong-feedback = ✗ Wrong, try again!
+finished-msg = 🎉 All done!
+time-history = ⏱ Time History
+no-records = No records yet. Finish a round to see your time!
+
 # Difficulty Levels
 difficulty = Difficulty:
 very-easy = Very Easy

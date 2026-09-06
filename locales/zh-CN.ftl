@@ -8,6 +8,21 @@ mental-math-title = 🔢 口算训练
 mental-math-coming-soon = 敬请期待！
 back-to-menu = ← 返回菜单
 
+# Mental Math Training
+practice-content = 练习内容：
+multiplication-table = 九九乘法表
+select-exercise-hint = 在左侧选择一个练习开始。
+question-counter = 题目
+elapsed-time = 用时：
+seconds-suffix = 秒
+press-enter = 输入答案后按回车提交
+esc-hint = 按 Esc 重置
+correct-feedback = ✓ 正确！
+wrong-feedback = ✗ 错误，请重试！
+finished-msg = 🎉 全部完成！
+time-history = ⏱ 用时记录
+no-records = 暂无记录。完成一轮练习后这里会显示用时！
+
 # Difficulty Levels
 difficulty = 难度：
 very-easy = 非常简单
