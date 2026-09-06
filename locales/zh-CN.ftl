@@ -1,6 +1,13 @@
 # Game Title
 game-title = 🐷 猪猪数独
 
+# Game Selection
+choose-game = 选择游戏：
+sudoku-game = 🧩 数独
+mental-math-title = 🔢 口算训练
+mental-math-coming-soon = 敬请期待！
+back-to-menu = ← 返回菜单
+
 # Difficulty Levels
 difficulty = 难度：
 very-easy = 非常简单
