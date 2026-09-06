@@ -1,6 +1,13 @@
 # Game Title
 game-title = 🐷 PigSudoku
 
+# Game Selection
+choose-game = Choose a game:
+sudoku-game = 🧩 Sudoku
+mental-math-title = 🔢 Mental Math Training
+mental-math-coming-soon = Coming soon! Stay tuned.
+back-to-menu = ← Menu
+
 # Difficulty Levels
 difficulty = Difficulty:
 very-easy = Very Easy

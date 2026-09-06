@@ -3757,6 +3757,7 @@ version = "0.1.0"
 dependencies = [
  "dioxus",
  "dioxus-i18n",
+ "web-sys",
  "web-time",
 ]
 
