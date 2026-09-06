@@ -79,8 +79,8 @@ This project is configured to automatically deploy to GitHub Pages when you push
 If you want to build and deploy manually:
 
 ```bash
-# Install Dioxus CLI if not already installed
-cargo install dioxus-cli
+# Install Dioxus CLI if not already installed (0.7 required)
+cargo install dioxus-cli --version "^0.7"
 
 # Build for web
 dx build --platform web --release
@@ -118,7 +118,8 @@ pigsudoku/
 
 ## Technologies
 
-- **Dioxus 0.6**: Modern Rust GUI framework
+- **Dioxus 0.7**: Modern Rust GUI framework
+- **dioxus-i18n 0.5**: Internationalization (English / Chinese)
 - **Rust**: Systems programming language
 - **Desktop**: Current target platform
 
@@ -208,7 +209,8 @@ pigsudoku/
 
 ## 技术栈
 
-- **Dioxus 0.6**：现代 Rust GUI 框架
+- **Dioxus 0.7**：现代 Rust GUI 框架
+- **dioxus-i18n 0.5**：国际化（英文 / 中文）
 - **Rust**：系统编程语言
 - **桌面**：当前目标平台
 
