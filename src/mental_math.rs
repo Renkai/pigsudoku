@@ -13,9 +13,77 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const TOTAL_QUESTIONS: usize = 30;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Exercise {
     MultiplicationTable,
+    TwoDigitAddSub,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Operator {
+    Add,
+    Sub,
+    Mul,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Blank {
+    Left,
+    Right,
+    Result,
+}
+
+/// A single question. `blank` marks which of the three positions is hidden.
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct Question {
+    left: u8,
+    right: u8,
+    op: Operator,
+    blank: Blank,
+}
+
+impl Question {
+    /// The value the player has to type in.
+    fn answer(&self) -> u32 {
+        match self.blank {
+            Blank::Left => self.left as u32,
+            Blank::Right => self.right as u32,
+            Blank::Result => match self.op {
+                Operator::Add => self.left as u32 + self.right as u32,
+                Operator::Sub => self.left as u32 - self.right as u32,
+                Operator::Mul => self.left as u32 * self.right as u32,
+            },
+        }
+    }
+
+    /// Text shown on the board, with `?` for the blank position.
+    fn display(&self) -> String {
+        let left = if self.blank == Blank::Left {
+            "?".to_string()
+        } else {
+            self.left.to_string()
+        };
+        let right = if self.blank == Blank::Right {
+            "?".to_string()
+        } else {
+            self.right.to_string()
+        };
+        let result = if self.blank == Blank::Result {
+            "?".to_string()
+        } else {
+            match self.op {
+                Operator::Add => (self.left as u32 + self.right as u32).to_string(),
+                Operator::Sub => (self.left as u32 - self.right as u32).to_string(),
+                Operator::Mul => (self.left as u32 * self.right as u32).to_string(),
+            }
+        };
+        let sign = match self.op {
+            Operator::Add => "+",
+            Operator::Sub => "-",
+            Operator::Mul => "×",
+        };
+        format!("{left} {sign} {right} = {result}")
+    }
 }
 
 // Simple PRNG so we don't need the rand crate (works on wasm without extra setup)
@@ -44,17 +112,55 @@ impl SimpleRng {
     }
 }
 
-fn random_question(exercise: Exercise) -> (u8, u8) {
+fn random_question(exercise: Exercise) -> Question {
     let mut rng = SimpleRng::new();
     match exercise {
-        Exercise::MultiplicationTable => (rng.gen_range(1, 9), rng.gen_range(1, 9)),
+        Exercise::MultiplicationTable => Question {
+            left: rng.gen_range(1, 9),
+            right: rng.gen_range(1, 9),
+            op: Operator::Mul,
+            blank: Blank::Result,
+        },
+        Exercise::TwoDigitAddSub => {
+            // Both operands and the result must stay two-digit (10..=99).
+            let op = if rng.gen_range(0, 1) == 0 {
+                Operator::Add
+            } else {
+                Operator::Sub
+            };
+            let (left, right) = match op {
+                // left + right <= 99, both >= 10
+                Operator::Add => {
+                    let left = rng.gen_range(10, 89);
+                    let right = rng.gen_range(10, 99 - left);
+                    (left, right)
+                }
+                // left - right >= 10, both >= 10
+                _ => {
+                    let left = rng.gen_range(20, 99);
+                    let right = rng.gen_range(10, left - 10);
+                    (left, right)
+                }
+            };
+            let blank = match rng.gen_range(0, 2) {
+                0 => Blank::Left,
+                1 => Blank::Right,
+                _ => Blank::Result,
+            };
+            Question {
+                left,
+                right,
+                op,
+                blank,
+            }
+        }
     }
 }
 
 #[component]
 pub fn MentalMath() -> Element {
     let mut exercise = use_signal(|| None::<Exercise>);
-    let mut question = use_signal(|| (0u8, 0u8));
+    let mut question = use_signal(|| random_question(Exercise::MultiplicationTable));
     let mut progress = use_signal(|| 0usize);
     let mut input = use_signal(String::new);
     // None = no feedback yet, Some(true) = correct, Some(false) = wrong
@@ -100,10 +206,7 @@ pub fn MentalMath() -> Element {
         let Ok(answer) = input().trim().parse::<u32>() else {
             return;
         };
-        let (a, b) = question();
-        let expected = match ex {
-            Exercise::MultiplicationTable => a as u32 * b as u32,
-        };
+        let expected = question().answer();
 
         if answer == expected {
             feedback.set(Some(true));
@@ -151,14 +254,22 @@ pub fn MentalMath() -> Element {
                     onclick: move |_| start_exercise(Exercise::MultiplicationTable),
                     {t!("multiplication-table")}
                 }
+                button {
+                    style: if exercise() == Some(Exercise::TwoDigitAddSub) {
+                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;"
+                    } else {
+                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #f5f5f5; color: #333; border: 1px solid #ddd; border-radius: 5px; cursor: pointer;"
+                    },
+                    onclick: move |_| start_exercise(Exercise::TwoDigitAddSub),
+                    {t!("two-digit-add-sub")}
+                }
             }
 
             // Middle column: question and answer
             div {
                 style: "min-width: 400px; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
-                if let Some(ex) = exercise() {
+                if exercise().is_some() {
                     {
-                        let (a, b) = question();
                         rsx! {
                             div {
                                 style: "display: flex; justify-content: space-between; color: #666; font-size: 16px; margin-bottom: 20px;",
@@ -185,9 +296,7 @@ pub fn MentalMath() -> Element {
                             } else {
                                 div {
                                     style: "font-size: 48px; font-weight: bold; color: #333; padding: 30px 0; text-align: center;",
-                                    match ex {
-                                        Exercise::MultiplicationTable => rsx! { "{a} × {b} = ?" },
-                                    }
+                                    "{question().display()}"
                                 }
 
                                 input {
@@ -265,5 +374,51 @@ pub fn MentalMath() -> Element {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn two_digit_add_sub_terms_are_all_two_digit() {
+        for _ in 0..2000 {
+            let q = random_question(Exercise::TwoDigitAddSub);
+            assert!((10..=99).contains(&q.left), "left not two-digit: {q:?}");
+            assert!((10..=99).contains(&q.right), "right not two-digit: {q:?}");
+
+            let result = match q.op {
+                Operator::Add => q.left as u32 + q.right as u32,
+                Operator::Sub => q.left as u32 - q.right as u32,
+                Operator::Mul => unreachable!("two-digit add/sub must not multiply"),
+            };
+            assert!((10..=99).contains(&result), "result not two-digit: {q:?}");
+
+            let expected = match q.blank {
+                Blank::Left => q.left as u32,
+                Blank::Right => q.right as u32,
+                Blank::Result => result,
+            };
+            assert_eq!(q.answer(), expected);
+        }
+    }
+
+    #[test]
+    fn blank_position_covers_all_three_positions() {
+        let mut seen_left = false;
+        let mut seen_right = false;
+        let mut seen_result = false;
+        for _ in 0..1000 {
+            match random_question(Exercise::TwoDigitAddSub).blank {
+                Blank::Left => seen_left = true,
+                Blank::Right => seen_right = true,
+                Blank::Result => seen_result = true,
+            }
+        }
+        assert!(
+            seen_left && seen_right && seen_result,
+            "blank position should be random across left/right/result"
+        );
     }
 }

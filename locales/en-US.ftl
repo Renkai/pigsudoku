@@ -11,6 +11,7 @@ back-to-menu = ← Menu
 # Mental Math Training
 practice-content = Practice:
 multiplication-table = Multiplication Table (9×9)
+two-digit-add-sub = Two-digit Addition & Subtraction
 select-exercise-hint = Select a practice on the left to start.
 question-counter = Question
 elapsed-time = Time:
