@@ -13,6 +13,94 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const TOTAL_QUESTIONS: usize = 30;
 
+/// Styles for the pig -> pork chop progress display and the cooking scene.
+const PIG_PROGRESS_CSS: &str = r#"
+.pig-cell {
+    position: relative;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    line-height: 1;
+}
+.pig-cell.current {
+    background: #fff4d6;
+    border-radius: 8px;
+    box-shadow: 0 0 0 2px #ffc107;
+}
+.pig-cooking {
+    display: inline-block;
+    animation: pig-wobble .65s ease-in-out infinite;
+}
+.pig-done {
+    display: inline-block;
+    animation: pig-pop .4s ease;
+}
+@keyframes pig-wobble {
+    0%, 100% { transform: rotate(-6deg); }
+    50% { transform: rotate(6deg); }
+}
+@keyframes pig-pop {
+    0% { transform: scale(.3) rotate(-18deg); }
+    65% { transform: scale(1.3) rotate(8deg); }
+    100% { transform: scale(1); }
+}
+.cook-scene {
+    position: relative;
+    width: 150px;
+    height: 100px;
+    margin: 0 auto 14px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+.cook-scene .cook-hero {
+    font-size: 46px;
+    line-height: 1.2;
+    position: relative;
+    z-index: 2;
+    animation: pig-wobble .65s ease-in-out infinite;
+}
+.cook-scene .cook-hero.cook-done {
+    animation: pig-pop .5s ease;
+}
+.cook-scene .cook-fire {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    font-size: 26px;
+    letter-spacing: -9px;
+    z-index: 1;
+    transform: translateX(-50%);
+    transform-origin: bottom center;
+    animation: pig-flicker .3s ease-in-out infinite alternate;
+}
+.cook-scene .cook-steam {
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    font-size: 20px;
+    z-index: 3;
+    opacity: 0;
+    animation: pig-rise 1.8s ease-in-out infinite;
+}
+.cook-scene .cook-steam.s2 {
+    left: 34%;
+    font-size: 15px;
+    animation-delay: .9s;
+}
+@keyframes pig-flicker {
+    0% { transform: translateX(-50%) scaleY(.85) scaleX(1.05); opacity: .85; }
+    100% { transform: translateX(-50%) scaleY(1.15) scaleX(.95); opacity: 1; }
+}
+@keyframes pig-rise {
+    0% { transform: translate(-50%, 12px) scale(.6); opacity: 0; }
+    35% { opacity: .9; }
+    100% { transform: translate(-50%, -22px) scale(1.1); opacity: 0; }
+}
+"#;
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Exercise {
     MultiplicationTable,
@@ -316,6 +404,9 @@ pub fn MentalMath() -> Element {
                 }
             },
 
+            // Cooking styles for the pig -> pork chop progress display.
+            style { dangerous_inner_html: PIG_PROGRESS_CSS }
+
             // Left column: exercise selection
             div {
                 style: "min-width: 220px; text-align: left; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
@@ -365,17 +456,37 @@ pub fn MentalMath() -> Element {
                                 span { {t!("elapsed-time")} " {elapsed} " {t!("seconds-suffix")} }
                             }
 
-                            // One pig face per question; each completed question
-                            // turns one pig into a meat-on-bone emoji.
+                            // One icon per question: waiting pig (🐷), the raw cut
+                            // currently on the fire (🥩), and the finished dish (🍖).
                             div {
                                 style: "display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; \
-                                       font-size: 20px; line-height: 1.2; text-align: center; \
-                                       margin-bottom: 15px; user-select: none;",
+                                       margin-bottom: 10px; user-select: none;",
                                 for i in 0..TOTAL_QUESTIONS {
-                                    span {
+                                    div {
                                         key: "{i}",
-                                        {if i < progress() { "🍖" } else { "🐷" }}
+                                        class: if i == progress() && !finished() { "pig-cell current" } else { "pig-cell" },
+                                        if i < progress() {
+                                            span { class: "pig-done", "🍖" }
+                                        } else if i == progress() && !finished() {
+                                            span { class: "pig-cooking", "🥩" }
+                                        } else {
+                                            span { "🐷" }
+                                        }
                                     }
+                                }
+                            }
+
+                            // The current question, cooking over the fire.
+                            div {
+                                class: "cook-scene",
+                                span { class: "cook-steam", "♨️" }
+                                span { class: "cook-steam s2", "💨" }
+                                if finished() {
+                                    span { class: "cook-hero cook-done", "🍖" }
+                                    span { class: "cook-fire", "✨" }
+                                } else {
+                                    span { class: "cook-hero", "🥩" }
+                                    span { class: "cook-fire", "🔥🔥🔥" }
                                 }
                             }
 
