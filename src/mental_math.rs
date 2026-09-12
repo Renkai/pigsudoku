@@ -13,6 +13,58 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const TOTAL_QUESTIONS: usize = 30;
 
+/// Styles for the small per-question cooking animation in the progress grid.
+const PIG_PROGRESS_CSS: &str = r#"
+.pig-cell {
+    position: relative;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    line-height: 1;
+}
+.pig-cell.current {
+    background: #fff4d6;
+    border-radius: 8px;
+    box-shadow: 0 0 0 2px #ffc107;
+}
+.pig-cooking {
+    display: inline-block;
+    position: relative;
+    z-index: 1;
+    animation: pig-wobble .65s ease-in-out infinite;
+}
+.pig-done {
+    display: inline-block;
+    animation: pig-pop .4s ease;
+}
+.mini-fire {
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    font-size: 13px;
+    letter-spacing: -4px;
+    z-index: 0;
+    transform: translateX(-50%);
+    transform-origin: bottom center;
+    animation: pig-flicker .3s ease-in-out infinite alternate;
+}
+@keyframes pig-wobble {
+    0%, 100% { transform: rotate(-6deg); }
+    50% { transform: rotate(6deg); }
+}
+@keyframes pig-pop {
+    0% { transform: scale(.3) rotate(-18deg); }
+    65% { transform: scale(1.3) rotate(8deg); }
+    100% { transform: scale(1); }
+}
+@keyframes pig-flicker {
+    0% { transform: translateX(-50%) scaleY(.85) scaleX(1.05); opacity: .85; }
+    100% { transform: translateX(-50%) scaleY(1.15) scaleX(.95); opacity: 1; }
+}
+"#;
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Exercise {
     MultiplicationTable,
@@ -316,6 +368,9 @@ pub fn MentalMath() -> Element {
                 }
             },
 
+            // Cooking styles for the pig -> pork chop progress display.
+            style { dangerous_inner_html: PIG_PROGRESS_CSS }
+
             // Left column: exercise selection
             div {
                 style: "min-width: 220px; text-align: left; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
@@ -363,6 +418,27 @@ pub fn MentalMath() -> Element {
                                 style: "display: flex; justify-content: space-between; color: #666; font-size: 16px; margin-bottom: 20px;",
                                 span { {t!("question-counter")} " {progress} / {TOTAL_QUESTIONS}" }
                                 span { {t!("elapsed-time")} " {elapsed} " {t!("seconds-suffix")} }
+                            }
+
+                            // One icon per question: waiting pig (🐷), the raw cut
+                            // currently on the fire (🥩), and the finished dish (🍖).
+                            div {
+                                style: "display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; \
+                                       margin-bottom: 10px; user-select: none;",
+                                for i in 0..TOTAL_QUESTIONS {
+                                    div {
+                                        key: "{i}",
+                                        class: if i == progress() && !finished() { "pig-cell current" } else { "pig-cell" },
+                                        if i < progress() {
+                                            span { class: "pig-done", "🍖" }
+                                        } else if i == progress() && !finished() {
+                                            span { class: "mini-fire", "🔥🔥" }
+                                            span { class: "pig-cooking", "🥩" }
+                                        } else {
+                                            span { "🐷" }
+                                        }
+                                    }
+                                }
                             }
 
                             if finished() {
