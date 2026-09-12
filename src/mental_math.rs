@@ -17,6 +17,7 @@ const TOTAL_QUESTIONS: usize = 30;
 enum Exercise {
     MultiplicationTable,
     TwoDigitAddSub,
+    TwoDigitChainAddSub,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -33,12 +34,27 @@ enum Blank {
     Result,
 }
 
-/// A single question. `blank` marks which of the three positions is hidden.
+impl Operator {
+    fn sign(self) -> &'static str {
+        match self {
+            Operator::Add => "+",
+            Operator::Sub => "-",
+            Operator::Mul => "×",
+        }
+    }
+}
+
+/// A single question. `blank` marks which position is hidden.
+/// When `op2`/`third` are set the question is a left-to-right chain.
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Question {
     left: u8,
     right: u8,
+    /// Third operand, used by chained add/sub questions.
+    third: Option<u8>,
     op: Operator,
+    /// Second operator, used by chained add/sub questions.
+    op2: Option<Operator>,
     blank: Blank,
 }
 
@@ -48,11 +64,24 @@ impl Question {
         match self.blank {
             Blank::Left => self.left as u32,
             Blank::Right => self.right as u32,
-            Blank::Result => match self.op {
-                Operator::Add => self.left as u32 + self.right as u32,
-                Operator::Sub => self.left as u32 - self.right as u32,
-                Operator::Mul => self.left as u32 * self.right as u32,
-            },
+            Blank::Result => self.evaluate(),
+        }
+    }
+
+    /// Left-to-right evaluation of the (possibly chained) expression.
+    fn evaluate(&self) -> u32 {
+        let mut value = Self::apply(self.left as i32, self.op, self.right as i32);
+        if let (Some(op2), Some(third)) = (self.op2, self.third) {
+            value = Self::apply(value, op2, third as i32);
+        }
+        value as u32
+    }
+
+    fn apply(value: i32, op: Operator, operand: i32) -> i32 {
+        match op {
+            Operator::Add => value + operand,
+            Operator::Sub => value - operand,
+            Operator::Mul => value * operand,
         }
     }
 
@@ -71,18 +100,18 @@ impl Question {
         let result = if self.blank == Blank::Result {
             "?".to_string()
         } else {
-            match self.op {
-                Operator::Add => (self.left as u32 + self.right as u32).to_string(),
-                Operator::Sub => (self.left as u32 - self.right as u32).to_string(),
-                Operator::Mul => (self.left as u32 * self.right as u32).to_string(),
+            self.evaluate().to_string()
+        };
+        match (self.op2, self.third) {
+            (Some(op2), Some(third)) => {
+                format!(
+                    "{left} {} {right} {} {third} = {result}",
+                    self.op.sign(),
+                    op2.sign()
+                )
             }
-        };
-        let sign = match self.op {
-            Operator::Add => "+",
-            Operator::Sub => "-",
-            Operator::Mul => "×",
-        };
-        format!("{left} {sign} {right} = {result}")
+            _ => format!("{left} {} {right} = {result}", self.op.sign()),
+        }
     }
 }
 
@@ -112,22 +141,28 @@ impl SimpleRng {
     }
 }
 
+fn random_add_or_sub(rng: &mut SimpleRng) -> Operator {
+    if rng.gen_range(0, 1) == 0 {
+        Operator::Add
+    } else {
+        Operator::Sub
+    }
+}
+
 fn random_question(exercise: Exercise) -> Question {
     let mut rng = SimpleRng::new();
     match exercise {
         Exercise::MultiplicationTable => Question {
             left: rng.gen_range(1, 9),
             right: rng.gen_range(1, 9),
+            third: None,
             op: Operator::Mul,
+            op2: None,
             blank: Blank::Result,
         },
         Exercise::TwoDigitAddSub => {
             // Both operands and the result must stay two-digit (10..=99).
-            let op = if rng.gen_range(0, 1) == 0 {
-                Operator::Add
-            } else {
-                Operator::Sub
-            };
+            let op = random_add_or_sub(&mut rng);
             let (left, right) = match op {
                 // left + right <= 99, both >= 10
                 Operator::Add => {
@@ -150,8 +185,51 @@ fn random_question(exercise: Exercise) -> Question {
             Question {
                 left,
                 right,
+                third: None,
                 op,
+                op2: None,
                 blank,
+            }
+        }
+        Exercise::TwoDigitChainAddSub => {
+            // left op1 right op2 third = ?, all operands and the result are
+            // two-digit, and intermediate values stay within 0..=100 (never
+            // negative, never above 100).
+            for _ in 0..1000 {
+                let left = rng.gen_range(10, 99);
+                let right = rng.gen_range(10, 99);
+                let third = rng.gen_range(10, 99);
+                let op = random_add_or_sub(&mut rng);
+                let op2 = random_add_or_sub(&mut rng);
+
+                let first = match op {
+                    Operator::Add => left as i32 + right as i32,
+                    _ => left as i32 - right as i32,
+                };
+                let result = match op2 {
+                    Operator::Add => first + third as i32,
+                    _ => first - third as i32,
+                };
+
+                if (0..=100).contains(&first) && (10..=99).contains(&result) {
+                    return Question {
+                        left,
+                        right,
+                        third: Some(third),
+                        op,
+                        op2: Some(op2),
+                        blank: Blank::Result,
+                    };
+                }
+            }
+            // Practically unreachable: guaranteed-valid fallback.
+            Question {
+                left: 10,
+                right: 10,
+                third: Some(10),
+                op: Operator::Add,
+                op2: Some(Operator::Add),
+                blank: Blank::Result,
             }
         }
     }
@@ -263,6 +341,15 @@ pub fn MentalMath() -> Element {
                     onclick: move |_| start_exercise(Exercise::TwoDigitAddSub),
                     {t!("two-digit-add-sub")}
                 }
+                button {
+                    style: if exercise() == Some(Exercise::TwoDigitChainAddSub) {
+                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;"
+                    } else {
+                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #f5f5f5; color: #333; border: 1px solid #ddd; border-radius: 5px; cursor: pointer;"
+                    },
+                    onclick: move |_| start_exercise(Exercise::TwoDigitChainAddSub),
+                    {t!("two-digit-chain-add-sub")}
+                }
             }
 
             // Middle column: question and answer
@@ -270,6 +357,7 @@ pub fn MentalMath() -> Element {
                 style: "min-width: 400px; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
                 if exercise().is_some() {
                     {
+                        let question_font_size = if question().op2.is_some() { "40px" } else { "48px" };
                         rsx! {
                             div {
                                 style: "display: flex; justify-content: space-between; color: #666; font-size: 16px; margin-bottom: 20px;",
@@ -295,7 +383,7 @@ pub fn MentalMath() -> Element {
                                 }
                             } else {
                                 div {
-                                    style: "font-size: 48px; font-weight: bold; color: #333; padding: 30px 0; text-align: center;",
+                                    style: "font-size: {question_font_size}; font-weight: bold; color: #333; padding: 30px 0; text-align: center;",
                                     "{question().display()}"
                                 }
 
@@ -420,5 +508,37 @@ mod tests {
             seen_left && seen_right && seen_result,
             "blank position should be random across left/right/result"
         );
+    }
+
+    #[test]
+    fn chain_add_sub_keeps_all_terms_two_digit_and_steps_in_range() {
+        for _ in 0..2000 {
+            let q = random_question(Exercise::TwoDigitChainAddSub);
+            let third = q.third.expect("chain question must have a third operand");
+            let op2 = q.op2.expect("chain question must have a second operator");
+
+            assert_eq!(q.blank, Blank::Result, "chain blank must be the result");
+            assert!((10..=99).contains(&q.left), "left not two-digit: {q:?}");
+            assert!((10..=99).contains(&q.right), "right not two-digit: {q:?}");
+            assert!((10..=99).contains(&third), "third not two-digit: {q:?}");
+
+            let first = match q.op {
+                Operator::Add => q.left as i32 + q.right as i32,
+                Operator::Sub => q.left as i32 - q.right as i32,
+                Operator::Mul => unreachable!("chain add/sub must not multiply"),
+            };
+            assert!(
+                (0..=100).contains(&first),
+                "intermediate out of 0..=100: {q:?}"
+            );
+
+            let result = match op2 {
+                Operator::Add => first + third as i32,
+                Operator::Sub => first - third as i32,
+                Operator::Mul => unreachable!("chain add/sub must not multiply"),
+            };
+            assert!((10..=99).contains(&result), "result not two-digit: {q:?}");
+            assert_eq!(q.answer(), result as u32);
+        }
     }
 }

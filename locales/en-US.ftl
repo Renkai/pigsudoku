@@ -12,6 +12,7 @@ back-to-menu = ← Menu
 practice-content = Practice:
 multiplication-table = Multiplication Table (9×9)
 two-digit-add-sub = Two-digit Addition & Subtraction
+two-digit-chain-add-sub = Two-digit Chain Add & Subtract
 select-exercise-hint = Select a practice on the left to start.
 question-counter = Question
 elapsed-time = Time:

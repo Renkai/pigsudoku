@@ -12,6 +12,7 @@ back-to-menu = ← 返回菜单
 practice-content = 练习内容：
 multiplication-table = 九九乘法表
 two-digit-add-sub = 两位数加减
+two-digit-chain-add-sub = 两位数连加减
 select-exercise-hint = 在左侧选择一个练习开始。
 question-counter = 题目
 elapsed-time = 用时：
