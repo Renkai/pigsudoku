@@ -52,7 +52,13 @@ dx build --platform web --release
 cd target/dx/pigsudoku/release/web/public && python3 -m http.server 8000
 ```
 
-### GitHub Pages Deployment
+### GitHub Pages Deployment (paused)
+
+> **Note:** Auto-deployment is paused for now — local development is enough.
+> The workflow file is kept at `.github/workflows/deploy.yml`; uncomment the
+> `push` / `pull_request` triggers there to re-enable it later.
+>
+> 注：自动部署暂时停用，先保证本地可用。工作流文件保留在 `.github/workflows/deploy.yml`，需要时取消触发器注释即可恢复。
 
 This project is configured to automatically deploy to GitHub Pages when you push to the main branch.
 

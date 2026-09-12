@@ -1,10 +1,14 @@
+# NOTE: GitHub Pages 自动部署暂时停用（先以本地使用为主）。
+# Auto-deployment is paused for now; local development is enough.
+# 需要恢复时，取消下面 push / pull_request 触发器的注释即可；
+# 也可以在 Actions 页面用 workflow_dispatch 手动触发。
 name: Deploy to GitHub Pages
 
 on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+  # push:
+  #   branches: [ master ]
+  # pull_request:
+  #   branches: [ master ]
   workflow_dispatch:
 
 jobs:
