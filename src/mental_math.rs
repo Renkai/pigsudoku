@@ -298,6 +298,7 @@ pub fn MentalMath() -> Element {
     let mut elapsed = use_signal(|| 0u64);
     let mut finished = use_signal(|| false);
     let mut history = use_signal(Vec::<u64>::new);
+    let mut sound_enabled = use_signal(|| true);
 
     use_interval(Duration::from_secs(1), move |()| {
         if exercise.read().is_some() && !finished() {
@@ -346,14 +347,20 @@ pub fn MentalMath() -> Element {
                 finished.set(true);
                 let secs = elapsed();
                 history.write().push(secs);
-                play_complete();
+                if sound_enabled() {
+                    play_complete();
+                }
             } else {
-                play_correct();
+                if sound_enabled() {
+                    play_correct();
+                }
                 question.set(random_question(ex));
             }
         } else {
             feedback.set(Some(false));
-            play_wrong();
+            if sound_enabled() {
+                play_wrong();
+            }
         }
         input.set(String::new());
     };
@@ -407,6 +414,24 @@ pub fn MentalMath() -> Element {
                     },
                     onclick: move |_| start_exercise(Exercise::TwoDigitChainAddSub),
                     {t!("two-digit-chain-add-sub")}
+                }
+
+                button {
+                    style: format!(
+                        "display: block; width: 100%; padding: 10px; margin: 16px 0 5px; font-size: 15px; \
+                         border-radius: 5px; cursor: pointer; transition: all 0.2s; {}",
+                        if sound_enabled() {
+                            "background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7;"
+                        } else {
+                            "background-color: #f5f5f5; color: #999; border: 1px solid #ddd;"
+                        }
+                    ),
+                    onclick: move |_| sound_enabled.set(!sound_enabled()),
+                    if sound_enabled() {
+                        {t!("sound-on")}
+                    } else {
+                        {t!("sound-off")}
+                    }
                 }
             }
 
