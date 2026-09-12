@@ -13,7 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const TOTAL_QUESTIONS: usize = 30;
 
-/// Styles for the pig -> pork chop progress display and the cooking scene.
+/// Styles for the small per-question cooking animation in the progress grid.
 const PIG_PROGRESS_CSS: &str = r#"
 .pig-cell {
     position: relative;
@@ -31,11 +31,24 @@ const PIG_PROGRESS_CSS: &str = r#"
 }
 .pig-cooking {
     display: inline-block;
+    position: relative;
+    z-index: 1;
     animation: pig-wobble .65s ease-in-out infinite;
 }
 .pig-done {
     display: inline-block;
     animation: pig-pop .4s ease;
+}
+.mini-fire {
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    font-size: 13px;
+    letter-spacing: -4px;
+    z-index: 0;
+    transform: translateX(-50%);
+    transform-origin: bottom center;
+    animation: pig-flicker .3s ease-in-out infinite alternate;
 }
 @keyframes pig-wobble {
     0%, 100% { transform: rotate(-6deg); }
@@ -46,58 +59,9 @@ const PIG_PROGRESS_CSS: &str = r#"
     65% { transform: scale(1.3) rotate(8deg); }
     100% { transform: scale(1); }
 }
-.cook-scene {
-    position: relative;
-    width: 150px;
-    height: 100px;
-    margin: 0 auto 14px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-}
-.cook-scene .cook-hero {
-    font-size: 46px;
-    line-height: 1.2;
-    position: relative;
-    z-index: 2;
-    animation: pig-wobble .65s ease-in-out infinite;
-}
-.cook-scene .cook-hero.cook-done {
-    animation: pig-pop .5s ease;
-}
-.cook-scene .cook-fire {
-    position: absolute;
-    bottom: 4px;
-    left: 50%;
-    font-size: 26px;
-    letter-spacing: -9px;
-    z-index: 1;
-    transform: translateX(-50%);
-    transform-origin: bottom center;
-    animation: pig-flicker .3s ease-in-out infinite alternate;
-}
-.cook-scene .cook-steam {
-    position: absolute;
-    top: 2px;
-    left: 50%;
-    font-size: 20px;
-    z-index: 3;
-    opacity: 0;
-    animation: pig-rise 1.8s ease-in-out infinite;
-}
-.cook-scene .cook-steam.s2 {
-    left: 34%;
-    font-size: 15px;
-    animation-delay: .9s;
-}
 @keyframes pig-flicker {
     0% { transform: translateX(-50%) scaleY(.85) scaleX(1.05); opacity: .85; }
     100% { transform: translateX(-50%) scaleY(1.15) scaleX(.95); opacity: 1; }
-}
-@keyframes pig-rise {
-    0% { transform: translate(-50%, 12px) scale(.6); opacity: 0; }
-    35% { opacity: .9; }
-    100% { transform: translate(-50%, -22px) scale(1.1); opacity: 0; }
 }
 "#;
 
@@ -468,25 +432,12 @@ pub fn MentalMath() -> Element {
                                         if i < progress() {
                                             span { class: "pig-done", "🍖" }
                                         } else if i == progress() && !finished() {
+                                            span { class: "mini-fire", "🔥🔥" }
                                             span { class: "pig-cooking", "🥩" }
                                         } else {
                                             span { "🐷" }
                                         }
                                     }
-                                }
-                            }
-
-                            // The current question, cooking over the fire.
-                            div {
-                                class: "cook-scene",
-                                span { class: "cook-steam", "♨️" }
-                                span { class: "cook-steam s2", "💨" }
-                                if finished() {
-                                    span { class: "cook-hero cook-done", "🍖" }
-                                    span { class: "cook-fire", "✨" }
-                                } else {
-                                    span { class: "cook-hero", "🥩" }
-                                    span { class: "cook-fire", "🔥🔥🔥" }
                                 }
                             }
 
