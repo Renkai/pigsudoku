@@ -45,7 +45,8 @@ fn initial_screen() -> Screen {
 
 #[component]
 fn App() -> Element {
-    let current_locale = use_signal(|| langid!("en-US"));
+    // Default UI language: Chinese (use the toggle button to switch to English)
+    let current_locale = use_signal(|| langid!("zh-CN"));
     let screen = use_signal(initial_screen);
 
     rsx! {
