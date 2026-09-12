@@ -365,6 +365,20 @@ pub fn MentalMath() -> Element {
                                 span { {t!("elapsed-time")} " {elapsed} " {t!("seconds-suffix")} }
                             }
 
+                            // One pig face per question; each completed question
+                            // turns one pig into a meat-on-bone emoji.
+                            div {
+                                style: "display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; \
+                                       font-size: 20px; line-height: 1.2; text-align: center; \
+                                       margin-bottom: 15px; user-select: none;",
+                                for i in 0..TOTAL_QUESTIONS {
+                                    span {
+                                        key: "{i}",
+                                        {if i < progress() { "🍖" } else { "🐷" }}
+                                    }
+                                }
+                            }
+
                             if finished() {
                                 div {
                                     style: "padding: 30px; text-align: center;",
