@@ -70,6 +70,7 @@ enum Exercise {
     MultiplicationTable,
     TwoDigitAddSub,
     TwoDigitChainAddSub,
+    MulMixedAddSub,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -83,6 +84,7 @@ enum Operator {
 enum Blank {
     Left,
     Right,
+    Third,
     Result,
 }
 
@@ -97,7 +99,8 @@ impl Operator {
 }
 
 /// A single question. `blank` marks which position is hidden.
-/// When `op2`/`third` are set the question is a left-to-right chain.
+/// When `op2`/`third` are set the expression is evaluated left to right
+/// (for `a × b ± c` this gives multiplication the correct precedence).
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Question {
     left: u8,
@@ -116,6 +119,7 @@ impl Question {
         match self.blank {
             Blank::Left => self.left as u32,
             Blank::Right => self.right as u32,
+            Blank::Third => self.third.unwrap_or(0) as u32,
             Blank::Result => self.evaluate(),
         }
     }
@@ -154,7 +158,14 @@ impl Question {
         } else {
             self.evaluate().to_string()
         };
-        match (self.op2, self.third) {
+        let third = self.third.map(|t| {
+            if self.blank == Blank::Third {
+                "?".to_string()
+            } else {
+                t.to_string()
+            }
+        });
+        match (self.op2, third) {
             (Some(op2), Some(third)) => {
                 format!(
                     "{left} {} {right} {} {third} = {result}",
@@ -282,6 +293,34 @@ fn random_question(exercise: Exercise) -> Question {
                 op: Operator::Add,
                 op2: Some(Operator::Add),
                 blank: Blank::Result,
+            }
+        }
+        Exercise::MulMixedAddSub => {
+            // a × b ± c (multiplication first): the result stays within two
+            // digits (0..=99) and the blank can be any of the four numbers.
+            let left = rng.gen_range(1, 9);
+            let right = rng.gen_range(1, 9);
+            let product = left as i32 * right as i32;
+            let op2 = random_add_or_sub(&mut rng);
+            let third = match op2 {
+                // product + c <= 99
+                Operator::Add => rng.gen_range(1, (99 - product) as u8),
+                // product - c >= 0
+                _ => rng.gen_range(1, product as u8),
+            };
+            let blank = match rng.gen_range(0, 3) {
+                0 => Blank::Left,
+                1 => Blank::Right,
+                2 => Blank::Third,
+                _ => Blank::Result,
+            };
+            Question {
+                left,
+                right,
+                third: Some(third),
+                op: Operator::Mul,
+                op2: Some(op2),
+                blank,
             }
         }
     }
@@ -414,6 +453,15 @@ pub fn MentalMath() -> Element {
                     },
                     onclick: move |_| start_exercise(Exercise::TwoDigitChainAddSub),
                     {t!("two-digit-chain-add-sub")}
+                }
+                button {
+                    style: if exercise() == Some(Exercise::MulMixedAddSub) {
+                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;"
+                    } else {
+                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #f5f5f5; color: #333; border: 1px solid #ddd; border-radius: 5px; cursor: pointer;"
+                    },
+                    onclick: move |_| start_exercise(Exercise::MulMixedAddSub),
+                    {t!("mul-mixed-add-sub")}
                 }
 
                 button {
@@ -659,6 +707,7 @@ mod tests {
             let expected = match q.blank {
                 Blank::Left => q.left as u32,
                 Blank::Right => q.right as u32,
+                Blank::Third => unreachable!("two-digit add/sub never blanks the third operand"),
                 Blank::Result => result,
             };
             assert_eq!(q.answer(), expected);
@@ -674,6 +723,7 @@ mod tests {
             match random_question(Exercise::TwoDigitAddSub).blank {
                 Blank::Left => seen_left = true,
                 Blank::Right => seen_right = true,
+                Blank::Third => {}
                 Blank::Result => seen_result = true,
             }
         }
@@ -713,6 +763,57 @@ mod tests {
             assert!((10..=99).contains(&result), "result not two-digit: {q:?}");
             assert_eq!(q.answer(), result as u32);
         }
+    }
+
+    #[test]
+    fn mul_mixed_add_sub_keeps_result_within_two_digits() {
+        let mut seen_left = false;
+        let mut seen_right = false;
+        let mut seen_third = false;
+        let mut seen_result = false;
+        for _ in 0..2000 {
+            let q = random_question(Exercise::MulMixedAddSub);
+            let third = q.third.expect("mul mixed question must have a third operand");
+            let op2 = q.op2.expect("mul mixed question must have a second operator");
+
+            assert_eq!(q.op, Operator::Mul, "first operator must be ×");
+            assert!((1..=9).contains(&q.left), "factor out of 1..=9: {q:?}");
+            assert!((1..=9).contains(&q.right), "factor out of 1..=9: {q:?}");
+            assert!((1..=99).contains(&third), "third operand out of 1..=99: {q:?}");
+            assert_eq!(
+                q.display().matches('?').count(),
+                1,
+                "exactly one blank expected: {}",
+                q.display()
+            );
+
+            let product = q.left as i32 * q.right as i32;
+            let result = match op2 {
+                Operator::Add => product + third as i32,
+                Operator::Sub => product - third as i32,
+                Operator::Mul => unreachable!("second operator must be + or -"),
+            };
+            assert!((0..=99).contains(&result), "result out of 0..=99: {q:?}");
+
+            let expected = match q.blank {
+                Blank::Left => q.left as u32,
+                Blank::Right => q.right as u32,
+                Blank::Third => third as u32,
+                Blank::Result => result as u32,
+            };
+            assert_eq!(q.answer(), expected);
+
+            match q.blank {
+                Blank::Left => seen_left = true,
+                Blank::Right => seen_right = true,
+                Blank::Third => seen_third = true,
+                Blank::Result => seen_result = true,
+            }
+        }
+        assert!(
+            seen_left && seen_right && seen_third && seen_result,
+            "blank should cover all four positions"
+        );
     }
 
     #[test]
