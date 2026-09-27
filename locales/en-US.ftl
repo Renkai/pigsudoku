@@ -13,6 +13,7 @@ practice-content = Practice:
 multiplication-table = Multiplication Table (9×9)
 two-digit-add-sub = Two-digit Addition & Subtraction
 two-digit-chain-add-sub = Two-digit Chain Add & Subtract
+mul-mixed-add-sub = Multiply & Add/Subtract
 sound-on = 🔊 Sound: On
 sound-off = 🔇 Sound: Off
 select-exercise-hint = Select a practice on the left to start.
