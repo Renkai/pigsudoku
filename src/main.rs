@@ -5,7 +5,10 @@ use dioxus_i18n::unic_langid::langid;
 
 mod game_logic;
 mod frontend;
+mod keypad_training;
 mod mental_math;
+mod rng;
+mod sound;
 
 use game_logic::SudokuGame;
 use frontend::{

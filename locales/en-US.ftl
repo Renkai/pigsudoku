@@ -28,6 +28,30 @@ finished-msg = 🎉 All done!
 time-history = ⏱ Time History
 no-records = No records yet. Finish a round to see your time!
 
+# Keypad Finger Training
+keypad-practice = 🖐 Numpad Fingers
+keypad-one-digit = One key + Enter
+keypad-two-digits = Two keys + Enter
+keypad-three-digits = Three keys + Enter
+keypad-progressive = Build up 1→2→3
+keypad-copy-hint = Type it three times, ending each with Enter
+keypad-repeat = Repetition {$n} of {$total}
+keypad-press-hint = Press {$key} with your {$finger}
+keypad-enter-name = Enter
+keypad-correct = ✓ Nice!
+keypad-wrong = ✗ Wrong key, this repetition starts over
+keypad-wrong-row = ✗ Use the numpad digits, this repetition starts over
+keypad-mistakes = Mistakes
+keypad-accuracy = Accuracy
+keypad-finished = 🎉 Round complete!
+keypad-esc-hint = Press Esc for a new round
+keypad-numpad-note = Needs the numeric keypad on the right of your keyboard
+finger-thumb = thumb
+finger-index = index finger
+finger-middle = middle finger
+finger-ring = ring finger
+finger-pinky = pinky
+
 # Difficulty Levels
 difficulty = Difficulty:
 very-easy = Very Easy

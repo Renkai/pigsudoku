@@ -28,6 +28,30 @@ finished-msg = 🎉 全部完成！
 time-history = ⏱ 用时记录
 no-records = 暂无记录。完成一轮练习后这里会显示用时！
 
+# Keypad Finger Training
+keypad-practice = 🖐 小键盘指法
+keypad-one-digit = 单键 + 回车
+keypad-two-digits = 双键 + 回车
+keypad-three-digits = 三键 + 回车
+keypad-progressive = 渐增 1→2→3 键
+keypad-copy-hint = 照着按三遍，每遍最后按回车
+keypad-repeat = 这一题第 {$n} / {$total} 遍
+keypad-press-hint = 用{$finger}按 {$key}
+keypad-enter-name = 回车
+keypad-correct = ✓ 好！
+keypad-wrong = ✗ 按错了，这一遍重新来
+keypad-wrong-row = ✗ 请按小键盘上的数字键，这一遍重新来
+keypad-mistakes = 错误
+keypad-accuracy = 准确率
+keypad-finished = 🎉 这一轮完成！
+keypad-esc-hint = 按 Esc 换一组
+keypad-numpad-note = 需要键盘右边的小键盘（数字区）
+finger-thumb = 拇指
+finger-index = 食指
+finger-middle = 中指
+finger-ring = 无名指
+finger-pinky = 小指
+
 # Difficulty Levels
 difficulty = 难度：
 very-easy = 非常简单
