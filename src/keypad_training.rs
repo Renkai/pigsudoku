@@ -490,7 +490,7 @@ pub fn KeypadTraining(round: Signal<Round>, feedback: Signal<Option<Press>>) -> 
                 for i in 0..QUESTIONS_PER_ROUND {
                     div {
                         key: "{i}",
-                        style: format!("{TICK_LAYOUT} {}", tick_style(i, &state)),
+                        style: tick_style(i, &state),
                         "{tick_mark(i, &state)}"
                     }
                 }
@@ -518,7 +518,7 @@ pub fn KeypadTraining(round: Signal<Round>, feedback: Signal<Option<Press>>) -> 
                     for (index, key) in state.target().iter().enumerate() {
                         div {
                             key: "{index}",
-                            style: format!("{CHIP_LAYOUT} {}", chip_style(index, &state)),
+                            style: chip_style(index, &state),
                             div { style: "font-size: 30px; font-weight: bold; line-height: 1.15; color: #333;", "{key.glyph()}" }
                             div { style: "font-size: 12px; color: {key.finger().color()};", "{key.finger().name()}" }
                         }
@@ -611,43 +611,61 @@ fn grid_place(key: PadKey) -> &'static str {
 /// One key of the on-screen numpad: coloured by finger, highlighted while it is
 /// the key to press next, dimmed once it has been typed in this repetition.
 fn numpad_cell(key: PadKey, round: &Round) -> Element {
-    let finger = key.finger();
-    let is_next = round.next_key() == Some(key);
-    let typed = !is_next && round.typed_prefix().contains(&key);
-    let state_style = if is_next {
-        "box-shadow: 0 0 0 4px #ffc107; transform: scale(1.06);"
-    } else if typed {
-        "opacity: 0.45;"
-    } else {
-        ""
-    };
+    let style = numpad_cell_style(key, round);
 
     rsx! {
         div {
             key: "{key.glyph()}",
-            style: "display: flex; flex-direction: column; align-items: center; justify-content: center; \
-                    border-radius: 8px; border: 3px solid {finger.color()}; background: {finger.background()}; \
-                    {grid_place(key)} {state_style}",
+            style: "{style}",
             div { style: "font-size: 22px; font-weight: bold; color: #333; line-height: 1.1;", "{key.glyph()}" }
-            div { style: "font-size: 11px; color: {finger.color()};", "{key.finger().name()}" }
+            div { style: "font-size: 11px; color: {key.finger().color()};", "{key.finger().name()}" }
         }
     }
 }
 
+/// Style of one numpad key.
+///
+/// Every state declares the same properties on purpose: dioxus writes a style
+/// string property by property and never clears one that the new state leaves
+/// out, so a state without `box-shadow: none` would keep the previous highlight
+/// on screen.
+fn numpad_cell_style(key: PadKey, round: &Round) -> String {
+    let finger = key.finger();
+    let is_next = round.next_key() == Some(key);
+    let typed = !is_next && round.typed_prefix().contains(&key);
+    let (shadow, opacity, transform) = if is_next {
+        ("0 0 0 4px #ffc107", "1", "scale(1.06)")
+    } else if typed {
+        ("none", "0.45", "none")
+    } else {
+        ("none", "1", "none")
+    };
+
+    format!(
+        "display: flex; flex-direction: column; align-items: center; justify-content: center; \
+         border-radius: 8px; border: 3px solid {color}; background: {background}; \
+         box-shadow: {shadow}; opacity: {opacity}; transform: {transform}; {place}",
+        color = finger.color(),
+        background = finger.background(),
+        place = grid_place(key),
+    )
+}
+
 const TICK_LAYOUT: &str =
     "height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 14px;";
-const CHIP_LAYOUT: &str = "min-width: 60px; padding: 6px 10px; border-radius: 10px; text-align: center; \
-                           background: #fafafa; border: 3px solid #ddd;";
+const CHIP_LAYOUT: &str = "min-width: 60px; padding: 6px 10px; border-radius: 10px; text-align: center;";
 
-/// Style of question tick `index`.
-fn tick_style(index: usize, round: &Round) -> &'static str {
-    if round.finished() || index < round.question_index() {
-        "background: #e8f5e9; color: #2e7d32;"
+/// Style of question tick `index`; every state sets the same properties (see
+/// [`numpad_cell_style`]).
+fn tick_style(index: usize, round: &Round) -> String {
+    let (background, color, shadow) = if round.finished() || index < round.question_index() {
+        ("#e8f5e9", "#2e7d32", "none")
     } else if index == round.question_index() {
-        "background: #fff4d6; color: #ef6c00; box-shadow: 0 0 0 2px #ffc107;"
+        ("#fff4d6", "#ef6c00", "0 0 0 2px #ffc107")
     } else {
-        "background: #f5f5f5; color: #bbb;"
-    }
+        ("#f5f5f5", "#bbb", "none")
+    };
+    format!("{TICK_LAYOUT} background: {background}; color: {color}; box-shadow: {shadow};")
 }
 
 /// Mark of question tick `index`.
@@ -661,15 +679,26 @@ fn tick_mark(index: usize, round: &Round) -> &'static str {
     }
 }
 
-/// Style of the key chip at `index` of the target sequence.
-fn chip_style(index: usize, round: &Round) -> &'static str {
-    if index < round.typed() {
-        "border-color: #66bb6a; background: #e8f5e9; opacity: 0.6;"
+/// Style of the key chip at `index` of the target sequence; every state sets the
+/// same properties (see [`numpad_cell_style`]).
+fn chip_style(index: usize, round: &Round) -> String {
+    let (border, background, opacity, shadow, transform) = if index < round.typed() {
+        ("#66bb6a", "#e8f5e9", "0.6", "none", "none")
     } else if index == round.typed() {
-        "border-color: #ffb300; background: #fff8e1; box-shadow: 0 0 12px rgba(255,193,7,0.55); transform: scale(1.08);"
+        (
+            "#ffb300",
+            "#fff8e1",
+            "1",
+            "0 0 12px rgba(255,193,7,0.55)",
+            "scale(1.08)",
+        )
     } else {
-        "border-color: #ddd;"
-    }
+        ("#ddd", "#fafafa", "1", "none", "none")
+    };
+    format!(
+        "{CHIP_LAYOUT} border: 3px solid {border}; background: {background}; \
+         opacity: {opacity}; box-shadow: {shadow}; transform: {transform};"
+    )
 }
 
 #[cfg(test)]
