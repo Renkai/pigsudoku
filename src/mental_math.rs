@@ -1,15 +1,13 @@
-//! Mental arithmetic training game
+//! Mental arithmetic training game.
 
 use dioxus::prelude::*;
 use dioxus_i18n::t;
 use dioxus_sdk::time::use_interval;
 use std::time::Duration;
 
-#[cfg(target_arch = "wasm32")]
-use web_time::{SystemTime, UNIX_EPOCH};
-
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::keypad_training::{self, DrillLevel, KeypadTraining, Press, Round};
+use crate::rng::SimpleRng;
+use crate::sound::{play_complete, play_correct, play_wrong};
 
 const TOTAL_QUESTIONS: usize = 30;
 
@@ -71,6 +69,14 @@ enum Exercise {
     TwoDigitAddSub,
     TwoDigitChainAddSub,
     MulMixedAddSub,
+}
+
+/// One entry of the practice list: an arithmetic exercise, or a numeric-keypad
+/// finger drill from [`crate::keypad_training`].
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Practice {
+    Arithmetic(Exercise),
+    Keypad(DrillLevel),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -178,31 +184,9 @@ impl Question {
     }
 }
 
-// Simple PRNG so we don't need the rand crate (works on wasm without extra setup)
-struct SimpleRng(u64);
-
-impl SimpleRng {
-    fn new() -> Self {
-        let seed = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as u64;
-        Self(seed | 1)
-    }
-
-    fn next(&mut self) -> u64 {
-        let mut x = self.0;
-        x ^= x >> 12;
-        x ^= x << 25;
-        x ^= x >> 27;
-        self.0 = x;
-        x.wrapping_mul(0x2545F4914F6CDD1D)
-    }
-
-    fn gen_range(&mut self, lo: u8, hi: u8) -> u8 {
-        lo + (self.next() % (hi - lo + 1) as u64) as u8
-    }
-}
+// ---------------------------------------------------------------------------
+// Question generation
+// ---------------------------------------------------------------------------
 
 fn random_add_or_sub(rng: &mut SimpleRng) -> Operator {
     if rng.gen_range(0, 1) == 0 {
@@ -326,9 +310,29 @@ fn random_question(exercise: Exercise) -> Question {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Practice list
+// ---------------------------------------------------------------------------
+
+/// A practice button of the left column; highlighted while its drill is running.
+#[component]
+fn PracticeButton(label: String, selected: bool, onpick: EventHandler<()>) -> Element {
+    rsx! {
+        button {
+            style: if selected {
+                "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; text-align: left; background-color: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;"
+            } else {
+                "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; text-align: left; background-color: #f5f5f5; color: #333; border: 1px solid #ddd; border-radius: 5px; cursor: pointer;"
+            },
+            onclick: move |_| onpick.call(()),
+            "{label}"
+        }
+    }
+}
+
 #[component]
 pub fn MentalMath() -> Element {
-    let mut exercise = use_signal(|| None::<Exercise>);
+    let mut practice = use_signal(|| None::<Practice>);
     let mut question = use_signal(|| random_question(Exercise::MultiplicationTable));
     let mut progress = use_signal(|| 0usize);
     let mut input = use_signal(String::new);
@@ -338,38 +342,61 @@ pub fn MentalMath() -> Element {
     let mut finished = use_signal(|| false);
     let mut history = use_signal(Vec::<u64>::new);
     let mut sound_enabled = use_signal(|| true);
+    // Keypad drill: the round lives here too, so starting a drill (like starting
+    // an arithmetic exercise) begins from a clean slate.
+    let mut keypad_round = use_signal(|| Round::new(DrillLevel::Progressive));
+    let mut keypad_feedback = use_signal(|| None::<Press>);
 
     use_interval(Duration::from_secs(1), move |()| {
-        if exercise.read().is_some() && !finished() {
-            elapsed += 1;
+        match practice() {
+            Some(Practice::Arithmetic(_)) if !finished() => elapsed += 1,
+            Some(Practice::Keypad(_)) => keypad_round.write().tick(),
+            _ => {}
         }
     });
 
-    // Focus the answer input after an exercise is (re)started
+    // Focus what the running practice reads its input from: the answer input for
+    // an arithmetic exercise, the screen itself for a keypad drill (its key
+    // handler sits on the screen, and clicking a button does not move focus on
+    // every platform).
     use_effect(move || {
-        let should_focus = exercise.read().is_some() && !*finished.read();
-        if should_focus {
+        let focus_id = match practice() {
+            Some(Practice::Arithmetic(_)) if !finished() => Some("mental-math-answer"),
+            Some(Practice::Keypad(_)) => Some("mental-math-screen"),
+            _ => None,
+        };
+        if let Some(id) = focus_id {
             spawn(async move {
-                let _ = dioxus::document::eval(
-                    r#"document.getElementById("mental-math-answer")?.focus();"#,
-                )
+                let _ = dioxus::document::eval(&format!(
+                    r#"document.getElementById("{id}")?.focus();"#
+                ))
                 .await;
             });
         }
     });
 
-    let mut start_exercise = move |ex: Exercise| {
-        exercise.set(Some(ex));
-        question.set(random_question(ex));
-        progress.set(0);
-        input.set(String::new());
-        feedback.set(None);
-        elapsed.set(0);
-        finished.set(false);
+    let mut start_practice = move |p: Practice| {
+        practice.set(Some(p));
+        match p {
+            Practice::Arithmetic(ex) => {
+                question.set(random_question(ex));
+                progress.set(0);
+                input.set(String::new());
+                feedback.set(None);
+                elapsed.set(0);
+                finished.set(false);
+            }
+            Practice::Keypad(level) => {
+                keypad_round.set(Round::new(level));
+                keypad_feedback.set(None);
+            }
+        }
     };
 
     let mut submit_answer = move || {
-        let Some(ex) = exercise() else { return };
+        let Some(Practice::Arithmetic(ex)) = practice() else {
+            return;
+        };
         if finished() {
             return;
         }
@@ -406,14 +433,47 @@ pub fn MentalMath() -> Element {
 
     rsx! {
         div {
+            id: "mental-math-screen",
             tabindex: "0",
             style: "display: flex; justify-content: center; gap: 40px; align-items: flex-start; max-width: 1200px; margin: 0 auto; outline: none;",
             onkeydown: move |event: Event<KeyboardData>| {
                 use dioxus::prelude::Key;
                 if event.key() == Key::Escape {
-                    if let Some(ex) = exercise() {
-                        start_exercise(ex);
+                    match practice() {
+                        Some(Practice::Arithmetic(ex)) => start_practice(Practice::Arithmetic(ex)),
+                        Some(Practice::Keypad(_)) => {
+                            keypad_round.write().restart();
+                            keypad_feedback.set(None);
+                        }
+                        None => {}
                     }
+                }
+
+                // The write guard has to be dropped before the round is read
+                // again below, so collect the outcome first.
+                let press = keypad_training::handle_key(&mut keypad_round.write(), &event);
+                if let Some(press) = press {
+                    keypad_feedback.set(Some(press));
+                        match press {
+                            Press::Correct { question_done: true } => {
+                                if sound_enabled() {
+                                    play_correct();
+                                }
+                            }
+                            Press::RoundFinished => {
+                                let secs = keypad_round.read().elapsed();
+                                history.write().push(secs);
+                                if sound_enabled() {
+                                    play_complete();
+                                }
+                            }
+                            Press::Wrong | Press::WrongRow => {
+                                if sound_enabled() {
+                                    play_wrong();
+                                }
+                            }
+                            Press::Correct { question_done: false } => {}
+                        }
                 }
             },
 
@@ -427,41 +487,40 @@ pub fn MentalMath() -> Element {
                     style: "margin-top: 0; color: #333;",
                     {t!("practice-content")}
                 }
-                button {
-                    style: if exercise() == Some(Exercise::MultiplicationTable) {
-                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;"
-                    } else {
-                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #f5f5f5; color: #333; border: 1px solid #ddd; border-radius: 5px; cursor: pointer;"
-                    },
-                    onclick: move |_| start_exercise(Exercise::MultiplicationTable),
-                    {t!("multiplication-table")}
+                PracticeButton {
+                    label: t!("multiplication-table"),
+                    selected: practice() == Some(Practice::Arithmetic(Exercise::MultiplicationTable)),
+                    onpick: move |_| start_practice(Practice::Arithmetic(Exercise::MultiplicationTable)),
                 }
-                button {
-                    style: if exercise() == Some(Exercise::TwoDigitAddSub) {
-                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;"
-                    } else {
-                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #f5f5f5; color: #333; border: 1px solid #ddd; border-radius: 5px; cursor: pointer;"
-                    },
-                    onclick: move |_| start_exercise(Exercise::TwoDigitAddSub),
-                    {t!("two-digit-add-sub")}
+                PracticeButton {
+                    label: t!("two-digit-add-sub"),
+                    selected: practice() == Some(Practice::Arithmetic(Exercise::TwoDigitAddSub)),
+                    onpick: move |_| start_practice(Practice::Arithmetic(Exercise::TwoDigitAddSub)),
                 }
-                button {
-                    style: if exercise() == Some(Exercise::TwoDigitChainAddSub) {
-                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;"
-                    } else {
-                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #f5f5f5; color: #333; border: 1px solid #ddd; border-radius: 5px; cursor: pointer;"
-                    },
-                    onclick: move |_| start_exercise(Exercise::TwoDigitChainAddSub),
-                    {t!("two-digit-chain-add-sub")}
+                PracticeButton {
+                    label: t!("two-digit-chain-add-sub"),
+                    selected: practice() == Some(Practice::Arithmetic(Exercise::TwoDigitChainAddSub)),
+                    onpick: move |_| start_practice(Practice::Arithmetic(Exercise::TwoDigitChainAddSub)),
                 }
-                button {
-                    style: if exercise() == Some(Exercise::MulMixedAddSub) {
-                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;"
-                    } else {
-                        "display: block; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; background-color: #f5f5f5; color: #333; border: 1px solid #ddd; border-radius: 5px; cursor: pointer;"
-                    },
-                    onclick: move |_| start_exercise(Exercise::MulMixedAddSub),
-                    {t!("mul-mixed-add-sub")}
+                PracticeButton {
+                    label: t!("mul-mixed-add-sub"),
+                    selected: practice() == Some(Practice::Arithmetic(Exercise::MulMixedAddSub)),
+                    onpick: move |_| start_practice(Practice::Arithmetic(Exercise::MulMixedAddSub)),
+                }
+
+                // Numeric-keypad finger drills, alongside the arithmetic ones.
+                hr { style: "margin: 14px 0 8px; border: none; border-top: 1px solid #eee;" }
+                p {
+                    style: "margin: 0; color: #333; font-size: 15px; font-weight: bold; text-align: left;",
+                    {t!("keypad-practice")}
+                }
+                for level in DrillLevel::all() {
+                    PracticeButton {
+                        key: "{level.i18n_key()}",
+                        label: t!(level.i18n_key()),
+                        selected: practice() == Some(Practice::Keypad(level)),
+                        onpick: move |_| start_practice(Practice::Keypad(level)),
+                    }
                 }
 
                 button {
@@ -486,7 +545,9 @@ pub fn MentalMath() -> Element {
             // Middle column: question and answer
             div {
                 style: "min-width: 400px; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
-                if exercise().is_some() {
+                if let Some(Practice::Keypad(_)) = practice() {
+                    KeypadTraining { round: keypad_round, feedback: keypad_feedback }
+                } else if practice().is_some() {
                     {
                         let question_font_size = if question().op2.is_some() { "40px" } else { "48px" };
                         rsx! {
@@ -618,77 +679,12 @@ pub fn MentalMath() -> Element {
 }
 
 // ---------------------------------------------------------------------------
-// Sound effects
+// Sound effects live in `crate::sound`, shared with the keypad drill.
 // ---------------------------------------------------------------------------
-
-// Embedded so playback works on both the web build and the desktop webview
-// without depending on the asset bundler.
-const CORRECT_WAV: &[u8] = include_bytes!("../assets/sounds/correct.wav");
-const WRONG_WAV: &[u8] = include_bytes!("../assets/sounds/wrong.wav");
-const COMPLETE_WAV: &[u8] = include_bytes!("../assets/sounds/complete.wav");
-
-fn play_correct() {
-    play_wav(CORRECT_WAV);
-}
-
-fn play_wrong() {
-    play_wav(WRONG_WAV);
-}
-
-fn play_complete() {
-    play_wav(COMPLETE_WAV);
-}
-
-/// Play a WAV through the webview's audio element (works on web and desktop).
-fn play_wav(wav: &[u8]) {
-    let js = format!(
-        "Object.assign(new Audio('data:audio/wav;base64,{}'), {{ volume: 0.8 }}).play().catch(() => {{}});",
-        base64_encode(wav)
-    );
-    spawn(async move {
-        let _ = dioxus::document::eval(&js).await;
-    });
-}
-
-/// Minimal base64 encoder so we don't need an extra dependency.
-fn base64_encode(data: &[u8]) -> String {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
-    for chunk in data.chunks(3) {
-        let b0 = chunk[0];
-        let b1 = *chunk.get(1).unwrap_or(&0);
-        let b2 = *chunk.get(2).unwrap_or(&0);
-        let n = ((b0 as u32) << 16) | ((b1 as u32) << 8) | (b2 as u32);
-        out.push(TABLE[(n >> 18) as usize & 63] as char);
-        out.push(TABLE[(n >> 12) as usize & 63] as char);
-        if chunk.len() > 1 {
-            out.push(TABLE[(n >> 6) as usize & 63] as char);
-        } else {
-            out.push('=');
-        }
-        if chunk.len() > 2 {
-            out.push(TABLE[n as usize & 63] as char);
-        } else {
-            out.push('=');
-        }
-    }
-    out
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn base64_encoding_matches_known_values() {
-        assert_eq!(base64_encode(b""), "");
-        assert_eq!(base64_encode(b"f"), "Zg==");
-        assert_eq!(base64_encode(b"fo"), "Zm8=");
-        assert_eq!(base64_encode(b"foo"), "Zm9v");
-        assert_eq!(base64_encode(b"foob"), "Zm9vYg==");
-        assert_eq!(base64_encode(b"fooba"), "Zm9vYmE=");
-        assert_eq!(base64_encode(b"foobar"), "Zm9vYmFy");
-    }
 
     #[test]
     fn two_digit_add_sub_terms_are_all_two_digit() {
@@ -816,12 +812,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn embedded_sound_effects_are_valid_wav_files() {
-        for wav in [CORRECT_WAV, WRONG_WAV, COMPLETE_WAV] {
-            assert!(wav.len() > 44, "wav too short");
-            assert_eq!(&wav[0..4], b"RIFF", "missing RIFF header");
-            assert_eq!(&wav[8..12], b"WAVE", "missing WAVE header");
-        }
-    }
 }
