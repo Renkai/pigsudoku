@@ -227,13 +227,18 @@ fn random_question(exercise: Exercise) -> Question {
             // Divisor 1 would only ever ask for the dividend itself.
             let divisor = rng.gen_range(2, 9);
             let quotient = rng.gen_range(1, 9);
+            let blank = match rng.gen_range(0, 2) {
+                0 => Blank::Left,
+                1 => Blank::Right,
+                _ => Blank::Result,
+            };
             Question {
                 left: divisor * quotient,
                 right: divisor,
                 third: None,
                 op: Operator::Div,
                 op2: None,
-                blank: Blank::Result,
+                blank,
             }
         }
         Exercise::TwoDigitAddSub => {
@@ -893,10 +898,13 @@ mod tests {
 
     #[test]
     fn division_table_questions_are_exact_table_facts() {
+        let mut seen_left = false;
+        let mut seen_right = false;
+        let mut seen_result = false;
+
         for _ in 0..2000 {
             let q = random_question(Exercise::DivisionTable);
             assert_eq!(q.op, Operator::Div, "division table must divide: {q:?}");
-            assert_eq!(q.blank, Blank::Result, "division table blanks the result");
             assert!(
                 q.third.is_none() && q.op2.is_none(),
                 "single-step question: {q:?}"
@@ -907,9 +915,33 @@ mod tests {
             let quotient = q.left / q.right;
             assert_eq!(q.left % q.right, 0, "division is not exact: {q:?}");
             assert!((1..=9).contains(&quotient), "quotient out of 1..=9: {q:?}");
-            assert_eq!(q.answer(), quotient as u32);
-            assert_eq!(q.display().matches('?').count(), 1);
+            assert_eq!(
+                q.display().matches('?').count(),
+                1,
+                "exactly one blank expected: {}",
+                q.display()
+            );
+
+            let expected = match q.blank {
+                Blank::Left => q.left as u32,
+                Blank::Right => q.right as u32,
+                Blank::Third => unreachable!("the division table has no third operand"),
+                Blank::Result => quotient as u32,
+            };
+            assert_eq!(q.answer(), expected);
+
+            match q.blank {
+                Blank::Left => seen_left = true,
+                Blank::Right => seen_right = true,
+                Blank::Result => seen_result = true,
+                Blank::Third => {}
+            }
         }
+
+        assert!(
+            seen_left && seen_right && seen_result,
+            "blank should cover the dividend, the divisor and the result"
+        );
     }
 
     #[test]
