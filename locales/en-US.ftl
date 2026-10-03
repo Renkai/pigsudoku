@@ -11,9 +11,11 @@ back-to-menu = ← Menu
 # Mental Math Training
 practice-content = Practice:
 multiplication-table = Multiplication Table (9×9)
+division-table = Division Table (9×9)
 two-digit-add-sub = Two-digit Addition & Subtraction
 two-digit-chain-add-sub = Two-digit Chain Add & Subtract
 mul-mixed-add-sub = Multiply & Add/Subtract
+mul-div-mixed-add-sub = Multiply/Divide & Add/Subtract
 sound-on = 🔊 Sound: On
 sound-off = 🔇 Sound: Off
 select-exercise-hint = Select a practice on the left to start.
