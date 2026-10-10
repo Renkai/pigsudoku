@@ -11,9 +11,11 @@ back-to-menu = ← 返回菜单
 # Mental Math Training
 practice-content = 练习内容：
 multiplication-table = 九九乘法表
+division-table = 九九除法
 two-digit-add-sub = 两位数加减
 two-digit-chain-add-sub = 两位数连加减
 mul-mixed-add-sub = 乘加乘减
+mul-div-mixed-add-sub = 乘除结合加减
 sound-on = 🔊 音效: 开
 sound-off = 🔇 音效: 关
 select-exercise-hint = 在左侧选择一个练习开始。

@@ -66,9 +66,11 @@ const PIG_PROGRESS_CSS: &str = r#"
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Exercise {
     MultiplicationTable,
+    DivisionTable,
     TwoDigitAddSub,
     TwoDigitChainAddSub,
     MulMixedAddSub,
+    MulDivMixedAddSub,
 }
 
 /// One entry of the practice list: an arithmetic exercise, or a numeric-keypad
@@ -84,6 +86,7 @@ enum Operator {
     Add,
     Sub,
     Mul,
+    Div,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -100,13 +103,15 @@ impl Operator {
             Operator::Add => "+",
             Operator::Sub => "-",
             Operator::Mul => "×",
+            Operator::Div => "÷",
         }
     }
 }
 
 /// A single question. `blank` marks which position is hidden.
 /// When `op2`/`third` are set the expression is evaluated left to right
-/// (for `a × b ± c` this gives multiplication the correct precedence).
+/// (for `a × b ± c` and `a ÷ b ± c` this gives multiplication and division the
+/// correct precedence).
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Question {
     left: u8,
@@ -144,6 +149,7 @@ impl Question {
             Operator::Add => value + operand,
             Operator::Sub => value - operand,
             Operator::Mul => value * operand,
+            Operator::Div => value / operand,
         }
     }
 
@@ -196,6 +202,14 @@ fn random_add_or_sub(rng: &mut SimpleRng) -> Operator {
     }
 }
 
+fn random_mul_or_div(rng: &mut SimpleRng) -> Operator {
+    if rng.gen_range(0, 1) == 0 {
+        Operator::Mul
+    } else {
+        Operator::Div
+    }
+}
+
 fn random_question(exercise: Exercise) -> Question {
     let mut rng = SimpleRng::new();
     match exercise {
@@ -207,6 +221,26 @@ fn random_question(exercise: Exercise) -> Question {
             op2: None,
             blank: Blank::Result,
         },
+        Exercise::DivisionTable => {
+            // The reverse of the multiplication table: dividend ÷ divisor =
+            // quotient, all three within the table, so every answer is exact.
+            // Divisor 1 would only ever ask for the dividend itself.
+            let divisor = rng.gen_range(2, 9);
+            let quotient = rng.gen_range(1, 9);
+            let blank = match rng.gen_range(0, 2) {
+                0 => Blank::Left,
+                1 => Blank::Right,
+                _ => Blank::Result,
+            };
+            Question {
+                left: divisor * quotient,
+                right: divisor,
+                third: None,
+                op: Operator::Div,
+                op2: None,
+                blank,
+            }
+        }
         Exercise::TwoDigitAddSub => {
             // Both operands and the result must stay two-digit (10..=99).
             let op = random_add_or_sub(&mut rng);
@@ -303,6 +337,44 @@ fn random_question(exercise: Exercise) -> Question {
                 right,
                 third: Some(third),
                 op: Operator::Mul,
+                op2: Some(op2),
+                blank,
+            }
+        }
+        Exercise::MulDivMixedAddSub => {
+            // a × b ± c or a ÷ b ± c (table fact first): the result stays within
+            // two digits (0..=99) and the blank can be any of the four numbers.
+            // Division questions are built from their factors so they are exact.
+            let (op, left, right, fact) = match random_mul_or_div(&mut rng) {
+                Operator::Div => {
+                    let divisor = rng.gen_range(2, 9);
+                    let quotient = rng.gen_range(1, 9);
+                    (Operator::Div, divisor * quotient, divisor, quotient as i32)
+                }
+                _ => {
+                    let left = rng.gen_range(1, 9);
+                    let right = rng.gen_range(1, 9);
+                    (Operator::Mul, left, right, left as i32 * right as i32)
+                }
+            };
+            let op2 = random_add_or_sub(&mut rng);
+            let third = match op2 {
+                // fact + c <= 99
+                Operator::Add => rng.gen_range(1, (99 - fact) as u8),
+                // fact - c >= 0
+                _ => rng.gen_range(1, fact as u8),
+            };
+            let blank = match rng.gen_range(0, 3) {
+                0 => Blank::Left,
+                1 => Blank::Right,
+                2 => Blank::Third,
+                _ => Blank::Result,
+            };
+            Question {
+                left,
+                right,
+                third: Some(third),
+                op,
                 op2: Some(op2),
                 blank,
             }
@@ -493,6 +565,11 @@ pub fn MentalMath() -> Element {
                     onpick: move |_| start_practice(Practice::Arithmetic(Exercise::MultiplicationTable)),
                 }
                 PracticeButton {
+                    label: t!("division-table"),
+                    selected: practice() == Some(Practice::Arithmetic(Exercise::DivisionTable)),
+                    onpick: move |_| start_practice(Practice::Arithmetic(Exercise::DivisionTable)),
+                }
+                PracticeButton {
                     label: t!("two-digit-add-sub"),
                     selected: practice() == Some(Practice::Arithmetic(Exercise::TwoDigitAddSub)),
                     onpick: move |_| start_practice(Practice::Arithmetic(Exercise::TwoDigitAddSub)),
@@ -506,6 +583,11 @@ pub fn MentalMath() -> Element {
                     label: t!("mul-mixed-add-sub"),
                     selected: practice() == Some(Practice::Arithmetic(Exercise::MulMixedAddSub)),
                     onpick: move |_| start_practice(Practice::Arithmetic(Exercise::MulMixedAddSub)),
+                }
+                PracticeButton {
+                    label: t!("mul-div-mixed-add-sub"),
+                    selected: practice() == Some(Practice::Arithmetic(Exercise::MulDivMixedAddSub)),
+                    onpick: move |_| start_practice(Practice::Arithmetic(Exercise::MulDivMixedAddSub)),
                 }
 
                 // Numeric-keypad finger drills, alongside the arithmetic ones.
@@ -696,7 +778,9 @@ mod tests {
             let result = match q.op {
                 Operator::Add => q.left as u32 + q.right as u32,
                 Operator::Sub => q.left as u32 - q.right as u32,
-                Operator::Mul => unreachable!("two-digit add/sub must not multiply"),
+                Operator::Mul | Operator::Div => {
+                    unreachable!("two-digit add/sub must not multiply or divide")
+                }
             };
             assert!((10..=99).contains(&result), "result not two-digit: {q:?}");
 
@@ -744,7 +828,7 @@ mod tests {
             let first = match q.op {
                 Operator::Add => q.left as i32 + q.right as i32,
                 Operator::Sub => q.left as i32 - q.right as i32,
-                Operator::Mul => unreachable!("chain add/sub must not multiply"),
+                Operator::Mul | Operator::Div => unreachable!("chain add/sub must not multiply or divide"),
             };
             assert!(
                 (0..=100).contains(&first),
@@ -754,7 +838,7 @@ mod tests {
             let result = match op2 {
                 Operator::Add => first + third as i32,
                 Operator::Sub => first - third as i32,
-                Operator::Mul => unreachable!("chain add/sub must not multiply"),
+                Operator::Mul | Operator::Div => unreachable!("chain add/sub must not multiply or divide"),
             };
             assert!((10..=99).contains(&result), "result not two-digit: {q:?}");
             assert_eq!(q.answer(), result as u32);
@@ -787,7 +871,7 @@ mod tests {
             let result = match op2 {
                 Operator::Add => product + third as i32,
                 Operator::Sub => product - third as i32,
-                Operator::Mul => unreachable!("second operator must be + or -"),
+                Operator::Mul | Operator::Div => unreachable!("second operator must be + or -"),
             };
             assert!((0..=99).contains(&result), "result out of 0..=99: {q:?}");
 
@@ -812,4 +896,120 @@ mod tests {
         );
     }
 
+    #[test]
+    fn division_table_questions_are_exact_table_facts() {
+        let mut seen_left = false;
+        let mut seen_right = false;
+        let mut seen_result = false;
+
+        for _ in 0..2000 {
+            let q = random_question(Exercise::DivisionTable);
+            assert_eq!(q.op, Operator::Div, "division table must divide: {q:?}");
+            assert!(
+                q.third.is_none() && q.op2.is_none(),
+                "single-step question: {q:?}"
+            );
+            assert!((2..=9).contains(&q.right), "divisor out of 2..=9: {q:?}");
+            assert!(q.left <= 81, "dividend beyond the 9x9 table: {q:?}");
+
+            let quotient = q.left / q.right;
+            assert_eq!(q.left % q.right, 0, "division is not exact: {q:?}");
+            assert!((1..=9).contains(&quotient), "quotient out of 1..=9: {q:?}");
+            assert_eq!(
+                q.display().matches('?').count(),
+                1,
+                "exactly one blank expected: {}",
+                q.display()
+            );
+
+            let expected = match q.blank {
+                Blank::Left => q.left as u32,
+                Blank::Right => q.right as u32,
+                Blank::Third => unreachable!("the division table has no third operand"),
+                Blank::Result => quotient as u32,
+            };
+            assert_eq!(q.answer(), expected);
+
+            match q.blank {
+                Blank::Left => seen_left = true,
+                Blank::Right => seen_right = true,
+                Blank::Result => seen_result = true,
+                Blank::Third => {}
+            }
+        }
+
+        assert!(
+            seen_left && seen_right && seen_result,
+            "blank should cover the dividend, the divisor and the result"
+        );
+    }
+
+    #[test]
+    fn mul_div_mixed_add_sub_keeps_table_facts_and_two_digit_results() {
+        let mut seen_mul = false;
+        let mut seen_div = false;
+        let mut seen_blank = [false; 4];
+
+        for _ in 0..3000 {
+            let q = random_question(Exercise::MulDivMixedAddSub);
+            let third = q.third.expect("mixed question must have a third operand");
+            let op2 = q.op2.expect("mixed question must have a second operator");
+
+            // The first step is always a table fact: a × b, or a ÷ b built from
+            // its factors so that it divides exactly.
+            let fact = match q.op {
+                Operator::Mul => {
+                    assert!((1..=9).contains(&q.left), "factor out of 1..=9: {q:?}");
+                    assert!((1..=9).contains(&q.right), "factor out of 1..=9: {q:?}");
+                    q.left as i32 * q.right as i32
+                }
+                Operator::Div => {
+                    assert!((2..=9).contains(&q.right), "divisor out of 2..=9: {q:?}");
+                    assert_eq!(q.left % q.right, 0, "division is not exact: {q:?}");
+                    let quotient = q.left / q.right;
+                    assert!((1..=9).contains(&quotient), "quotient out of 1..=9: {q:?}");
+                    quotient as i32
+                }
+                _ => unreachable!("the first operator is × or ÷"),
+            };
+            let result = match op2 {
+                Operator::Add => fact + third as i32,
+                Operator::Sub => fact - third as i32,
+                _ => unreachable!("the second operator is + or -"),
+            };
+            assert!((0..=99).contains(&result), "result out of 0..=99: {q:?}");
+            assert_eq!(
+                q.display().matches('?').count(),
+                1,
+                "exactly one blank expected: {}",
+                q.display()
+            );
+
+            let expected = match q.blank {
+                Blank::Left => q.left as u32,
+                Blank::Right => q.right as u32,
+                Blank::Third => third as u32,
+                Blank::Result => result as u32,
+            };
+            assert_eq!(q.answer(), expected);
+
+            match q.op {
+                Operator::Mul => seen_mul = true,
+                Operator::Div => seen_div = true,
+                _ => {}
+            }
+            match q.blank {
+                Blank::Left => seen_blank[0] = true,
+                Blank::Right => seen_blank[1] = true,
+                Blank::Third => seen_blank[2] = true,
+                Blank::Result => seen_blank[3] = true,
+            }
+        }
+
+        assert!(seen_mul && seen_div, "both × and ÷ questions should show up");
+        assert!(
+            seen_blank.iter().all(|seen| *seen),
+            "blank should cover all four positions"
+        );
+    }
 }
