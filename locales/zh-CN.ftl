@@ -27,6 +27,12 @@ esc-hint = 按 Esc 重置
 correct-feedback = ✓ 正确！
 wrong-feedback = ✗ 错误，请重试！
 finished-msg = 🎉 全部完成！
+time-hidden-banner = 🔥 最后 10 题！时间已隐藏
+pace-steady = 🙂 稳
+pace-hurry = 😅 加快
+pace-sprint = 😰 冲刺
+pace-final = 🔥 最后冲刺
+time-revealed = 🎉 揭晓：共
 time-history = ⏱ 用时记录
 no-records = 暂无记录。完成一轮练习后这里会显示用时！
 

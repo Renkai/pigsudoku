@@ -27,6 +27,12 @@ esc-hint = Press Esc to restart
 correct-feedback = ✓ Correct!
 wrong-feedback = ✗ Wrong, try again!
 finished-msg = 🎉 All done!
+time-hidden-banner = 🔥 Last 10 questions! The clock is hidden
+pace-steady = 🙂 Steady
+pace-hurry = 😅 Hurry up
+pace-sprint = 😰 Sprint
+pace-final = 🔥 Final push
+time-revealed = 🎉 Revealed:
 time-history = ⏱ Time History
 no-records = No records yet. Finish a round to see your time!
 

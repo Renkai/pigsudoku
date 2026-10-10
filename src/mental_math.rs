@@ -63,6 +63,20 @@ const PIG_PROGRESS_CSS: &str = r#"
 }
 "#;
 
+/// Styles for the heartbeat that replaces the clock in the last questions.
+const TIMER_CSS: &str = r#"
+.time-pulse {
+    display: inline-block;
+    animation: time-beat 1s ease-in-out infinite;
+}
+@keyframes time-beat {
+    0% { transform: scale(1); opacity: .85; }
+    12% { transform: scale(1.35); opacity: 1; }
+    35% { transform: scale(1); opacity: .85; }
+    100% { transform: scale(1); opacity: .85; }
+}
+"#;
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Exercise {
     MultiplicationTable,
@@ -383,6 +397,26 @@ fn random_question(exercise: Exercise) -> Question {
 }
 
 // ---------------------------------------------------------------------------
+// Pace display
+// ---------------------------------------------------------------------------
+
+/// Whether the clock is hidden: it goes away once ten questions are left, so the
+/// last stretch is run on feel instead of on the stopwatch.
+fn time_is_hidden(progress: usize) -> bool {
+    progress + 10 >= TOTAL_QUESTIONS
+}
+
+/// Mood shown instead of the seconds, stepping up as the round runs on.
+fn pace_tier(elapsed: u64) -> &'static str {
+    match elapsed {
+        0..=19 => "pace-steady",
+        20..=39 => "pace-hurry",
+        40..=59 => "pace-sprint",
+        _ => "pace-final",
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Practice list
 // ---------------------------------------------------------------------------
 
@@ -552,6 +586,9 @@ pub fn MentalMath() -> Element {
             // Cooking styles for the pig -> pork chop progress display.
             style { dangerous_inner_html: PIG_PROGRESS_CSS }
 
+            // Heartbeat shown while the clock is hidden.
+            style { dangerous_inner_html: TIMER_CSS }
+
             // Left column: exercise selection
             div {
                 style: "min-width: 220px; text-align: left; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
@@ -636,7 +673,27 @@ pub fn MentalMath() -> Element {
                             div {
                                 style: "display: flex; justify-content: space-between; color: #666; font-size: 16px; margin-bottom: 20px;",
                                 span { {t!("question-counter")} " {progress} / {TOTAL_QUESTIONS}" }
-                                span { {t!("elapsed-time")} " {elapsed} " {t!("seconds-suffix")} }
+                                if time_is_hidden(progress()) && !finished() {
+                                    // The exact time is hidden for the last questions:
+                                    // a heartbeat keeps the rhythm, a word keeps the
+                                    // pressure, and the number comes back at the end.
+                                    span {
+                                        style: "display: inline-flex; align-items: center; gap: 6px; font-weight: bold;",
+                                        span { class: "time-pulse", "💓" }
+                                        span { {t!(pace_tier(elapsed()))} }
+                                    }
+                                } else {
+                                    span { {t!("elapsed-time")} " {elapsed} " {t!("seconds-suffix")} }
+                                }
+                            }
+
+                            if time_is_hidden(progress()) && !finished() {
+                                div {
+                                    style: "background: #fff3e0; border: 1px solid #ffcc80; color: #e65100; \
+                                            border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; \
+                                            font-size: 16px; font-weight: bold;",
+                                    {t!("time-hidden-banner")}
+                                }
                             }
 
                             // One icon per question: waiting pig (🐷), the raw cut
@@ -669,7 +726,7 @@ pub fn MentalMath() -> Element {
                                     }
                                     p {
                                         style: "font-size: 20px; color: #333;",
-                                        {t!("elapsed-time")} " {elapsed} " {t!("seconds-suffix")}
+                                        {t!("time-revealed")} " {elapsed} " {t!("seconds-suffix")}
                                     }
                                     p {
                                         style: "color: #999; font-size: 14px;",
@@ -894,6 +951,27 @@ mod tests {
             seen_left && seen_right && seen_third && seen_result,
             "blank should cover all four positions"
         );
+    }
+
+    #[test]
+    fn the_clock_hides_for_the_last_ten_questions() {
+        assert!(!time_is_hidden(0));
+        assert!(!time_is_hidden(TOTAL_QUESTIONS - 11));
+        assert!(time_is_hidden(TOTAL_QUESTIONS - 10));
+        assert!(time_is_hidden(TOTAL_QUESTIONS - 1));
+        assert!(time_is_hidden(TOTAL_QUESTIONS));
+    }
+
+    #[test]
+    fn the_pace_word_steps_up_with_the_time() {
+        assert_eq!(pace_tier(0), "pace-steady");
+        assert_eq!(pace_tier(19), "pace-steady");
+        assert_eq!(pace_tier(20), "pace-hurry");
+        assert_eq!(pace_tier(39), "pace-hurry");
+        assert_eq!(pace_tier(40), "pace-sprint");
+        assert_eq!(pace_tier(59), "pace-sprint");
+        assert_eq!(pace_tier(60), "pace-final");
+        assert_eq!(pace_tier(9_999), "pace-final");
     }
 
     #[test]
