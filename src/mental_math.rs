@@ -9,7 +9,8 @@ use crate::keypad_training::{self, DrillLevel, KeypadTraining, Press, Round};
 use crate::rng::SimpleRng;
 use crate::sound::{play_complete, play_correct, play_wrong};
 
-const TOTAL_QUESTIONS: usize = 30;
+/// How many questions a round of the expression drills asks.
+const EXPRESSION_QUESTIONS: usize = 30;
 
 /// Styles for the small per-question cooking animation in the progress grid.
 const PIG_PROGRESS_CSS: &str = r#"
@@ -85,6 +86,31 @@ enum Exercise {
     TwoDigitChainAddSub,
     MulMixedAddSub,
     MulDivMixedAddSub,
+    /// Two equations over two fruits, solved by cancelling one unknown.
+    TwoUnknowns,
+}
+
+impl Exercise {
+    /// How many questions one round asks. Two unknowns costs far more work per
+    /// question than an expression does — two equations to solve by elimination
+    /// before the answer — so its round is a short one.
+    fn questions(self) -> usize {
+        match self {
+            Exercise::TwoUnknowns => 10,
+            _ => EXPRESSION_QUESTIONS,
+        }
+    }
+
+    /// How many questions at the end run with the clock hidden: the last third
+    /// of the round, so the finish is run on feel instead of on the stopwatch.
+    fn hidden_clock_questions(self) -> usize {
+        self.questions() / 3
+    }
+
+    /// The question the clock disappears at.
+    fn clock_hides_at(self) -> usize {
+        self.questions() - self.hidden_clock_questions()
+    }
 }
 
 /// One entry of the practice list: an arithmetic exercise, or a numeric-keypad
@@ -204,6 +230,257 @@ impl Question {
     }
 }
 
+/// What the board shows: a single expression, or two equations with two
+/// unknowns. Both know the answer to type in and how to draw themselves.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Problem {
+    Expression(Question),
+    TwoUnknowns(FruitSystem),
+}
+
+impl Problem {
+    /// The value the player has to type in.
+    fn answer(&self) -> u32 {
+        match self {
+            Problem::Expression(question) => question.answer(),
+            Problem::TwoUnknowns(system) => system.answer(),
+        }
+    }
+
+    /// Text for the board; a two-unknown question uses one line per equation,
+    /// which the board keeps as line breaks.
+    fn display(&self) -> String {
+        match self {
+            Problem::Expression(question) => question.display(),
+            Problem::TwoUnknowns(system) => system.display(),
+        }
+    }
+
+    /// Type size for the board: the longer questions need smaller type. A
+    /// two-unknown board is sized so that its longest equation — five fruit
+    /// symbols — still fits on one line inside the narrowest board, since a
+    /// wrapped equation would read like an extra equation.
+    fn font_size(&self) -> &'static str {
+        match self {
+            Problem::Expression(question) if question.op2.is_none() => "48px",
+            Problem::Expression(_) => "40px",
+            Problem::TwoUnknowns(_) => "32px",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Two unknowns
+// ---------------------------------------------------------------------------
+
+/// Fruits a question is built from, grouped by how alike they look. The two
+/// fruits of a question come from different groups, so they are never hard to
+/// tell apart on the board. The warm colours share a group: a red apple next to
+/// a peach or an orange reads as poorly as 🍐 next to 🥝.
+const LOOKALIKE_FRUITS: [&[&str]; 4] = [
+    &["🍎", "🍓", "🍑", "🍊"], // warm: red, peach and orange
+    &["🍌"],                  // yellow
+    &["🍐", "🥝"],            // green
+    &["🍇"],                  // purple
+];
+
+/// A fruit is worth at least two, so the product asked at the end is never a
+/// trivial `1 × n` and the quotient never the dividend itself.
+const MIN_FRUIT_VALUE: u8 = 2;
+/// Largest fruit value, which keeps the product and the quotient inside the
+/// 9×9 table.
+const MAX_FRUIT_VALUE: u8 = 9;
+/// Most fruit symbols on one line: the first fruit once plus the repeats of the
+/// second, which keeps the equations short enough for the board.
+const MAX_FRUITS_PER_EQUATION: u8 = 5;
+
+/// One equation of a two-unknown question: each fruit counted `counts[j]` times,
+/// where a negative count means that fruit is subtracted.
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct FruitEquation {
+    counts: [i8; 2],
+    /// Right-hand side; kept two-digit.
+    total: i32,
+}
+
+impl FruitEquation {
+    /// The equation as text, positive term first so no line starts with a minus.
+    fn display(&self, fruits: [&'static str; 2]) -> String {
+        let order = if self.counts[0] > 0 { [0, 1] } else { [1, 0] };
+        let sign = if self.counts[order[1]] < 0 { " − " } else { " + " };
+        format!(
+            "{}{sign}{} = {}",
+            Self::term(fruits[order[0]], self.counts[order[0]]),
+            Self::term(fruits[order[1]], self.counts[order[1]]),
+            self.total
+        )
+    }
+
+    /// A term: the fruit repeated once per count, joined by the term's own sign.
+    fn term(fruit: &str, count: i8) -> String {
+        let joiner = if count < 0 { " − " } else { " + " };
+        vec![fruit; count.unsigned_abs() as usize].join(joiner)
+    }
+}
+
+/// A question with two unknowns: two equations over the same two fruits, which
+/// cancel one unknown when added or subtracted, and then the product or quotient
+/// of the two fruit values is asked for.
+///
+/// The values are whole numbers, so the two equations always solve back to the
+/// values the question was built from.
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct FruitSystem {
+    fruits: [&'static str; 2],
+    values: [u8; 2],
+    equations: [FruitEquation; 2],
+    /// Asked at the end: `fruits[0] × fruits[1]` or `fruits[0] ÷ fruits[1]`.
+    op: Operator,
+}
+
+impl FruitSystem {
+    fn answer(&self) -> u32 {
+        match self.op {
+            Operator::Div => (self.values[0] / self.values[1]) as u32,
+            _ => self.values[0] as u32 * self.values[1] as u32,
+        }
+    }
+
+    /// The two equations, then the question about the two fruits.
+    fn display(&self) -> String {
+        format!(
+            "{}\n{}\n{} {} {} = ?",
+            self.equations[0].display(self.fruits),
+            self.equations[1].display(self.fruits),
+            self.fruits[0],
+            self.op.sign(),
+            self.fruits[1]
+        )
+    }
+}
+
+/// Two fruits that do not look alike, so a question never shows the same fruit
+/// twice and never two fruits that are hard to tell apart.
+fn pick_fruits(rng: &mut SimpleRng) -> [&'static str; 2] {
+    let first = rng.gen_range(0, LOOKALIKE_FRUITS.len() as u8 - 1);
+    let mut second = rng.gen_range(0, LOOKALIKE_FRUITS.len() as u8 - 1);
+    if second == first {
+        second = (second + 1) % LOOKALIKE_FRUITS.len() as u8;
+    }
+    [
+        pick_fruit(rng, LOOKALIKE_FRUITS[first as usize]),
+        pick_fruit(rng, LOOKALIKE_FRUITS[second as usize]),
+    ]
+}
+
+/// One fruit out of a group, so the fruits that look alike both turn up across
+/// questions.
+fn pick_fruit(rng: &mut SimpleRng, group: &[&'static str]) -> &'static str {
+    group[rng.gen_range(0, group.len() as u8 - 1) as usize]
+}
+
+fn random_sign(rng: &mut SimpleRng) -> i8 {
+    if rng.gen_range(0, 1) == 0 {
+        1
+    } else {
+        -1
+    }
+}
+
+/// One equation whose two-digit right-hand side follows from `values`. The
+/// second fruit is counted out and added, the first one is added or subtracted:
+/// with two-digit totals those are the only two shapes an equation can take, so
+/// a minus on the board always sits in front of the single first fruit
+/// (`🍑 + 🍑 + 🍑 − 🍎 = 10`).
+fn random_equation(rng: &mut SimpleRng, values: [u8; 2]) -> FruitEquation {
+    let counts = [
+        random_sign(rng),
+        rng.gen_range(1, MAX_FRUITS_PER_EQUATION - 1) as i8,
+    ];
+    FruitEquation {
+        counts,
+        total: counts[0] as i32 * values[0] as i32 + counts[1] as i32 * values[1] as i32,
+    }
+}
+
+/// A pair of fruit values and two equations that solve to them. The values are a
+/// fact of the 9×9 table, both sides of each equation stay two-digit, and the
+/// division that cancelling one unknown leaves is a table fact as well.
+fn random_fruit_system(rng: &mut SimpleRng) -> FruitSystem {
+    for _ in 0..1000 {
+        let (op, values) = match random_mul_or_div(rng) {
+            Operator::Div => {
+                // Built from its factors, so the quotient is exact.
+                let second = rng.gen_range(MIN_FRUIT_VALUE, 4);
+                let quotient = rng.gen_range(MIN_FRUIT_VALUE, MAX_FRUIT_VALUE / second);
+                (Operator::Div, [second * quotient, second])
+            }
+            _ => (
+                Operator::Mul,
+                [
+                    rng.gen_range(MIN_FRUIT_VALUE, MAX_FRUIT_VALUE),
+                    rng.gen_range(MIN_FRUIT_VALUE, MAX_FRUIT_VALUE),
+                ],
+            ),
+        };
+
+        let equations = [random_equation(rng, values), random_equation(rng, values)];
+        // Both right-hand sides stay two-digit, like the add/sub practices.
+        if equations.iter().any(|e| !(10..=99).contains(&e.total)) {
+            continue;
+        }
+        // The equations have to be independent; the same counts behind the same
+        // signs would be one line twice, with no single solution.
+        let determinant = equations[0].counts[0] as i32 * equations[1].counts[1] as i32
+            - equations[1].counts[0] as i32 * equations[0].counts[1] as i32;
+        if determinant == 0 {
+            continue;
+        }
+        // Cancelling the first fruit divides by the difference of the two counts
+        // when its sign is the same in both equations and by their sum when the
+        // signs differ; that divisor has to stay a table fact.
+        let (first, second) = (
+            equations[0].counts[1].unsigned_abs(),
+            equations[1].counts[1].unsigned_abs(),
+        );
+        let divisor = if equations[0].counts[0] == equations[1].counts[0] {
+            first.abs_diff(second)
+        } else {
+            first + second
+        };
+        // The symbol cap already keeps the divisor at eight or below; the check
+        // is what keeps this a table fact if that cap ever grows.
+        if divisor > MAX_FRUIT_VALUE {
+            continue;
+        }
+
+        return FruitSystem {
+            fruits: pick_fruits(rng),
+            values,
+            equations,
+            op,
+        };
+    }
+
+    // Practically unreachable: two equations over 2 and 3 that satisfy every rule
+    // above. The apple and the banana look nothing alike.
+    FruitSystem {
+        fruits: ["🍎", "🍌"],
+        values: [2, 3],
+        equations: [
+            FruitEquation {
+                counts: [1, 5],
+                total: 17,
+            },
+            FruitEquation {
+                counts: [1, 3],
+                total: 11,
+            },
+        ],
+        op: Operator::Mul,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Question generation
 // ---------------------------------------------------------------------------
@@ -224,9 +501,9 @@ fn random_mul_or_div(rng: &mut SimpleRng) -> Operator {
     }
 }
 
-fn random_question(exercise: Exercise) -> Question {
+fn random_problem(exercise: Exercise) -> Problem {
     let mut rng = SimpleRng::new();
-    match exercise {
+    let question = match exercise {
         Exercise::MultiplicationTable => Question {
             left: rng.gen_range(1, 9),
             right: rng.gen_range(1, 9),
@@ -307,14 +584,14 @@ fn random_question(exercise: Exercise) -> Question {
                 };
 
                 if (0..=100).contains(&first) && (10..=99).contains(&result) {
-                    return Question {
+                    return Problem::Expression(Question {
                         left,
                         right,
                         third: Some(third),
                         op,
                         op2: Some(op2),
                         blank: Blank::Result,
-                    };
+                    });
                 }
             }
             // Practically unreachable: guaranteed-valid fallback.
@@ -393,17 +670,18 @@ fn random_question(exercise: Exercise) -> Question {
                 blank,
             }
         }
-    }
+        Exercise::TwoUnknowns => return Problem::TwoUnknowns(random_fruit_system(&mut rng)),
+    };
+    Problem::Expression(question)
 }
 
 // ---------------------------------------------------------------------------
 // Pace display
 // ---------------------------------------------------------------------------
 
-/// Whether the clock is hidden: it goes away once ten questions are left, so the
-/// last stretch is run on feel instead of on the stopwatch.
-fn time_is_hidden(progress: usize) -> bool {
-    progress + 10 >= TOTAL_QUESTIONS
+/// Whether the clock is hidden at this point in a round of `exercise`.
+fn time_is_hidden(progress: usize, exercise: Exercise) -> bool {
+    progress >= exercise.clock_hides_at()
 }
 
 /// Mood shown instead of the seconds, stepping up as the round runs on.
@@ -439,7 +717,7 @@ fn PracticeButton(label: String, selected: bool, onpick: EventHandler<()>) -> El
 #[component]
 pub fn MentalMath() -> Element {
     let mut practice = use_signal(|| None::<Practice>);
-    let mut question = use_signal(|| random_question(Exercise::MultiplicationTable));
+    let mut question = use_signal(|| random_problem(Exercise::MultiplicationTable));
     let mut progress = use_signal(|| 0usize);
     let mut input = use_signal(String::new);
     // None = no feedback yet, Some(true) = correct, Some(false) = wrong
@@ -487,7 +765,7 @@ pub fn MentalMath() -> Element {
         practice.set(Some(p));
         match p {
             Practice::Arithmetic(ex) => {
-                question.set(random_question(ex));
+                question.set(random_problem(ex));
                 progress.set(0);
                 input.set(String::new());
                 feedback.set(None);
@@ -517,7 +795,7 @@ pub fn MentalMath() -> Element {
             feedback.set(Some(true));
             let done = progress() + 1;
             progress.set(done);
-            if done >= TOTAL_QUESTIONS {
+            if done >= ex.questions() {
                 finished.set(true);
                 let secs = elapsed();
                 history.write().push(secs);
@@ -528,7 +806,7 @@ pub fn MentalMath() -> Element {
                 if sound_enabled() {
                     play_correct();
                 }
-                question.set(random_question(ex));
+                question.set(random_problem(ex));
             }
         } else {
             feedback.set(Some(false));
@@ -628,6 +906,11 @@ pub fn MentalMath() -> Element {
                     selected: practice() == Some(Practice::Arithmetic(Exercise::MulDivMixedAddSub)),
                     onpick: move |_| start_practice(Practice::Arithmetic(Exercise::MulDivMixedAddSub)),
                 }
+                PracticeButton {
+                    label: t!("two-unknowns"),
+                    selected: practice() == Some(Practice::Arithmetic(Exercise::TwoUnknowns)),
+                    onpick: move |_| start_practice(Practice::Arithmetic(Exercise::TwoUnknowns)),
+                }
 
                 // Numeric-keypad finger drills, alongside the arithmetic ones.
                 hr { style: "margin: 14px 0 8px; border: none; border-top: 1px solid #eee;" }
@@ -665,17 +948,20 @@ pub fn MentalMath() -> Element {
 
             // Middle column: question and answer
             div {
-                style: "min-width: 400px; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
+                style: "min-width: 460px; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
                 if let Some(Practice::Keypad(_)) = practice() {
                     KeypadTraining { round: keypad_round, feedback: keypad_feedback }
-                } else if practice().is_some() {
+                } else if let Some(Practice::Arithmetic(exercise)) = practice() {
                     {
-                        let question_font_size = if question().op2.is_some() { "40px" } else { "48px" };
+                        let question_font_size = question().font_size();
+                        let total_questions = exercise.questions();
+                        let hidden_questions = exercise.hidden_clock_questions();
+                        let clock_hidden = time_is_hidden(progress(), exercise);
                         rsx! {
                             div {
                                 style: "display: flex; justify-content: space-between; color: #666; font-size: 16px; margin-bottom: 20px;",
-                                span { {t!("question-counter")} " {progress} / {TOTAL_QUESTIONS}" }
-                                if time_is_hidden(progress()) && !finished() {
+                                span { {t!("question-counter")} " {progress} / {total_questions}" }
+                                if clock_hidden && !finished() {
                                     // The exact time is hidden for the last questions:
                                     // a heartbeat keeps the rhythm, a word keeps the
                                     // pressure, and the number comes back at the end.
@@ -689,12 +975,12 @@ pub fn MentalMath() -> Element {
                                 }
                             }
 
-                            if time_is_hidden(progress()) && !finished() {
+                            if clock_hidden && !finished() {
                                 div {
                                     style: "background: #fff3e0; border: 1px solid #ffcc80; color: #e65100; \
                                             border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; \
                                             font-size: 16px; font-weight: bold;",
-                                    {t!("time-hidden-banner")}
+                                    {t!("time-hidden-banner", count: {hidden_questions})}
                                 }
                             }
 
@@ -703,7 +989,7 @@ pub fn MentalMath() -> Element {
                             div {
                                 style: "display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; \
                                        margin-bottom: 10px; user-select: none;",
-                                for i in 0..TOTAL_QUESTIONS {
+                                for i in 0..total_questions {
                                     div {
                                         key: "{i}",
                                         class: if i == progress() && !finished() { "pig-cell current" } else { "pig-cell" },
@@ -737,7 +1023,7 @@ pub fn MentalMath() -> Element {
                                 }
                             } else {
                                 div {
-                                    style: "font-size: {question_font_size}; font-weight: bold; color: #333; padding: 30px 0; text-align: center;",
+                                    style: "font-size: {question_font_size}; font-weight: bold; color: #333; padding: 30px 0; text-align: center; white-space: pre-line;",
                                     "{question().display()}"
                                 }
 
@@ -827,10 +1113,19 @@ pub fn MentalMath() -> Element {
 mod tests {
     use super::*;
 
+    /// The expression generator behind [`random_problem`], for the tests that
+    /// only look at single-expression questions.
+    fn expression_of(exercise: Exercise) -> Question {
+        match random_problem(exercise) {
+            Problem::Expression(question) => question,
+            other => panic!("{exercise:?} is not a single expression: {other:?}"),
+        }
+    }
+
     #[test]
     fn two_digit_add_sub_terms_are_all_two_digit() {
         for _ in 0..2000 {
-            let q = random_question(Exercise::TwoDigitAddSub);
+            let q = expression_of(Exercise::TwoDigitAddSub);
             assert!((10..=99).contains(&q.left), "left not two-digit: {q:?}");
             assert!((10..=99).contains(&q.right), "right not two-digit: {q:?}");
 
@@ -859,7 +1154,7 @@ mod tests {
         let mut seen_right = false;
         let mut seen_result = false;
         for _ in 0..1000 {
-            match random_question(Exercise::TwoDigitAddSub).blank {
+            match expression_of(Exercise::TwoDigitAddSub).blank {
                 Blank::Left => seen_left = true,
                 Blank::Right => seen_right = true,
                 Blank::Third => {}
@@ -875,7 +1170,7 @@ mod tests {
     #[test]
     fn chain_add_sub_keeps_all_terms_two_digit_and_steps_in_range() {
         for _ in 0..2000 {
-            let q = random_question(Exercise::TwoDigitChainAddSub);
+            let q = expression_of(Exercise::TwoDigitChainAddSub);
             let third = q.third.expect("chain question must have a third operand");
             let op2 = q.op2.expect("chain question must have a second operator");
 
@@ -911,7 +1206,7 @@ mod tests {
         let mut seen_third = false;
         let mut seen_result = false;
         for _ in 0..2000 {
-            let q = random_question(Exercise::MulMixedAddSub);
+            let q = expression_of(Exercise::MulMixedAddSub);
             let third = q.third.expect("mul mixed question must have a third operand");
             let op2 = q.op2.expect("mul mixed question must have a second operator");
 
@@ -956,12 +1251,35 @@ mod tests {
     }
 
     #[test]
-    fn the_clock_hides_for_the_last_ten_questions() {
-        assert!(!time_is_hidden(0));
-        assert!(!time_is_hidden(TOTAL_QUESTIONS - 11));
-        assert!(time_is_hidden(TOTAL_QUESTIONS - 10));
-        assert!(time_is_hidden(TOTAL_QUESTIONS - 1));
-        assert!(time_is_hidden(TOTAL_QUESTIONS));
+    fn the_clock_hides_for_the_last_third_of_the_round() {
+        // Whatever a round's length, the clock goes away for its last third.
+        for exercise in [
+            Exercise::MultiplicationTable,
+            Exercise::DivisionTable,
+            Exercise::TwoDigitAddSub,
+            Exercise::TwoDigitChainAddSub,
+            Exercise::MulMixedAddSub,
+            Exercise::MulDivMixedAddSub,
+            Exercise::TwoUnknowns,
+        ] {
+            let questions = exercise.questions();
+            let hidden = exercise.hidden_clock_questions();
+            assert!(hidden > 0, "no question runs with the clock hidden");
+            assert!(
+                !time_is_hidden(questions - hidden - 1, exercise),
+                "the clock hides too early"
+            );
+            assert!(time_is_hidden(questions - hidden, exercise));
+            assert!(time_is_hidden(questions, exercise));
+        }
+
+        // The expression drills ask thirty questions and hide the clock for the
+        // last ten of them...
+        assert_eq!(Exercise::MultiplicationTable.questions(), EXPRESSION_QUESTIONS);
+        assert_eq!(Exercise::MultiplicationTable.hidden_clock_questions(), 10);
+        // ...and two unknowns asks ten, with its last three hidden.
+        assert_eq!(Exercise::TwoUnknowns.questions(), 10);
+        assert_eq!(Exercise::TwoUnknowns.hidden_clock_questions(), 3);
     }
 
     #[test]
@@ -983,7 +1301,7 @@ mod tests {
         let mut seen_result = false;
 
         for _ in 0..2000 {
-            let q = random_question(Exercise::DivisionTable);
+            let q = expression_of(Exercise::DivisionTable);
             assert_eq!(q.op, Operator::Div, "division table must divide: {q:?}");
             assert!(
                 q.third.is_none() && q.op2.is_none(),
@@ -1031,7 +1349,7 @@ mod tests {
         let mut seen_blank = [false; 4];
 
         for _ in 0..3000 {
-            let q = random_question(Exercise::MulDivMixedAddSub);
+            let q = expression_of(Exercise::MulDivMixedAddSub);
             let third = q.third.expect("mixed question must have a third operand");
             let op2 = q.op2.expect("mixed question must have a second operator");
 
@@ -1091,5 +1409,196 @@ mod tests {
             seen_blank.iter().all(|seen| *seen),
             "blank should cover all four positions"
         );
+    }
+
+    /// The group of fruits that look alike a fruit belongs to.
+    fn lookalike_group_of(fruit: &str) -> usize {
+        LOOKALIKE_FRUITS
+            .iter()
+            .position(|group| group.contains(&fruit))
+            .unwrap_or_else(|| panic!("{fruit} is in no fruit group"))
+    }
+
+    #[test]
+    fn every_fruit_belongs_to_exactly_one_lookalike_group() {
+        assert!(
+            LOOKALIKE_FRUITS.len() >= 2,
+            "two fruits need two groups to come from"
+        );
+        for (index, group) in LOOKALIKE_FRUITS.iter().enumerate() {
+            assert!(!group.is_empty(), "fruit group {index} is empty");
+            for fruit in group.iter() {
+                assert_eq!(
+                    LOOKALIKE_FRUITS
+                        .iter()
+                        .filter(|other| other.contains(fruit))
+                        .count(),
+                    1,
+                    "{fruit} is in more than one fruit group"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn two_unknown_questions_are_two_digit_and_solve_by_elimination() {
+        for _ in 0..2000 {
+            let system = match random_problem(Exercise::TwoUnknowns) {
+                Problem::TwoUnknowns(system) => system,
+                other => panic!("expected two unknowns, got {other:?}"),
+            };
+
+            assert_ne!(
+                system.fruits[0], system.fruits[1],
+                "the same fruit twice: {system:?}"
+            );
+            assert_ne!(
+                lookalike_group_of(system.fruits[0]),
+                lookalike_group_of(system.fruits[1]),
+                "the two fruits look alike: {system:?}"
+            );
+            for value in system.values {
+                assert!(
+                    (MIN_FRUIT_VALUE..=MAX_FRUIT_VALUE).contains(&value),
+                    "fruit value outside the table: {system:?}"
+                );
+            }
+            for equation in system.equations {
+                assert!(
+                    (10..=99).contains(&equation.total),
+                    "total is not two-digit: {system:?}"
+                );
+                let symbols: u32 = equation.counts.iter().map(|c| c.unsigned_abs() as u32).sum();
+                assert!(
+                    (1..=MAX_FRUITS_PER_EQUATION as u32).contains(&symbols),
+                    "wrong number of fruit symbols on one line: {system:?}"
+                );
+            }
+
+            // Adding or subtracting the two equations cancels one unknown, and
+            // either way they solve back to the values they were built from.
+            let (one, two) = (system.equations[0], system.equations[1]);
+            let determinant = one.counts[0] as i32 * two.counts[1] as i32
+                - two.counts[0] as i32 * one.counts[1] as i32;
+            assert_ne!(
+                determinant, 0,
+                "the two equations are not independent: {system:?}"
+            );
+            let solved_first =
+                (one.total * two.counts[1] as i32 - two.total * one.counts[1] as i32) / determinant;
+            let solved_second =
+                (one.counts[0] as i32 * two.total - two.counts[0] as i32 * one.total) / determinant;
+            assert_eq!(
+                solved_first, system.values[0] as i32,
+                "first fruit solves wrong: {system:?}"
+            );
+            assert_eq!(
+                solved_second, system.values[1] as i32,
+                "second fruit solves wrong: {system:?}"
+            );
+
+            // What is asked at the end is a fact of the 9×9 table.
+            match system.op {
+                Operator::Div => {
+                    assert_eq!(
+                        system.answer() * system.values[1] as u32,
+                        system.values[0] as u32,
+                        "division is not exact: {system:?}"
+                    );
+                    assert!(
+                        system.answer() >= MIN_FRUIT_VALUE as u32,
+                        "trivial division: {system:?}"
+                    );
+                }
+                _ => assert_eq!(
+                    system.answer(),
+                    system.values[0] as u32 * system.values[1] as u32
+                ),
+            }
+            assert!(system.answer() <= 81, "answer outside the table: {system:?}");
+        }
+    }
+
+    #[test]
+    fn two_unknown_questions_both_add_and_subtract_a_fruit() {
+        let (mut added, mut subtracted) = (false, false);
+        for _ in 0..2000 {
+            if let Problem::TwoUnknowns(system) = random_problem(Exercise::TwoUnknowns) {
+                if system.equations.iter().all(|e| e.counts[0] > 0) {
+                    added = true;
+                }
+                if system.equations.iter().any(|e| e.counts[0] < 0) {
+                    subtracted = true;
+                }
+            }
+        }
+        assert!(added, "no question adds the first fruit in both equations");
+        assert!(subtracted, "no question subtracts the first fruit");
+    }
+
+    #[test]
+    fn a_two_unknown_board_shows_both_equations_and_the_final_question() {
+        // The apple and peach example, with the peaches trimmed to the five-symbol
+        // cap: 4 apples, 3 peaches, so 4 × 3 = 12.
+        let system = FruitSystem {
+            fruits: ["🍎", "🍑"],
+            values: [4, 3],
+            equations: [
+                FruitEquation {
+                    counts: [1, 4],
+                    total: 16,
+                },
+                FruitEquation {
+                    counts: [1, 2],
+                    total: 10,
+                },
+            ],
+            op: Operator::Mul,
+        };
+        assert_eq!(
+            system.display(),
+            "🍎 + 🍑 + 🍑 + 🍑 + 🍑 = 16\n🍎 + 🍑 + 🍑 = 10\n🍎 × 🍑 = ?"
+        );
+        assert_eq!(system.answer(), 12);
+
+        // A subtracted fruit keeps its own sign and the positive term leads.
+        let subtracted = FruitSystem {
+            fruits: ["🍎", "🍑"],
+            values: [2, 5],
+            equations: [
+                FruitEquation {
+                    counts: [-1, 4],
+                    total: 18,
+                },
+                FruitEquation {
+                    counts: [1, 3],
+                    total: 17,
+                },
+            ],
+            op: Operator::Mul,
+        };
+        assert_eq!(
+            subtracted.display(),
+            "🍑 + 🍑 + 🍑 + 🍑 − 🍎 = 18\n🍎 + 🍑 + 🍑 + 🍑 = 17\n🍎 × 🍑 = ?"
+        );
+        assert_eq!(subtracted.answer(), 10);
+
+        let divided = FruitSystem {
+            fruits: ["🍊", "🍐"],
+            values: [6, 2],
+            equations: [
+                FruitEquation {
+                    counts: [1, 4],
+                    total: 14,
+                },
+                FruitEquation {
+                    counts: [1, 3],
+                    total: 12,
+                },
+            ],
+            op: Operator::Div,
+        };
+        assert_eq!(divided.display().lines().last(), Some("🍊 ÷ 🍐 = ?"));
+        assert_eq!(divided.answer(), 3);
     }
 }
