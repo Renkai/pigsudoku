@@ -447,7 +447,9 @@ pub fn MentalMath() -> Element {
     let mut elapsed = use_signal(|| 0u64);
     let mut finished = use_signal(|| false);
     let mut history = use_signal(Vec::<u64>::new);
-    let mut sound_enabled = use_signal(|| true);
+    // Sound effects are opt-in: the drills are often practised somewhere quiet,
+    // so a fresh session starts silent and the toggle turns them on.
+    let mut sound_enabled = use_signal(|| false);
     // Keypad drill: the round lives here too, so starting a drill (like starting
     // an arithmetic exercise) begins from a clean slate.
     let mut keypad_round = use_signal(|| Round::new(DrillLevel::Progressive));
