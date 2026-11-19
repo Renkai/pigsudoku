@@ -17,6 +17,11 @@ two-digit-chain-add-sub = Two-digit Chain Add & Subtract
 mul-mixed-add-sub = Multiply & Add/Subtract
 mul-div-mixed-add-sub = Multiply/Divide & Add/Subtract
 two-unknowns = Two Unknowns
+error-recovery = Error Recovery
+error-recovery-question =
+    Wenwen mistook { $correct } for { $mistaken } in a multiplication.
+    The incorrect product was { $product }.
+    What is the correct product?
 sound-on = 🔊 Sound: On
 sound-off = 🔇 Sound: Off
 select-exercise-hint = Select a practice on the left to start.

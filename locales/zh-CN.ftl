@@ -17,6 +17,11 @@ two-digit-chain-add-sub = 两位数连加减
 mul-mixed-add-sub = 乘加乘减
 mul-div-mixed-add-sub = 乘除结合加减
 two-unknowns = 二元一次
+error-recovery = 错中求解
+error-recovery-question =
+    文文把乘数 { $correct } 看成了 { $mistaken }，
+    得到错误的积 { $product }。
+    正确的积是几？
 sound-on = 🔊 音效: 开
 sound-off = 🔇 音效: 关
 select-exercise-hint = 在左侧选择一个练习开始。

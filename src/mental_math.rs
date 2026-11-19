@@ -88,15 +88,16 @@ enum Exercise {
     MulDivMixedAddSub,
     /// Two equations over two fruits, solved by cancelling one unknown.
     TwoUnknowns,
+    ErrorRecovery,
 }
 
 impl Exercise {
-    /// How many questions one round asks. Two unknowns costs far more work per
-    /// question than an expression does — two equations to solve by elimination
-    /// before the answer — so its round is a short one.
+    /// How many questions one round asks. Word problems take more work per
+    /// question than an expression does, so their rounds are shorter.
     fn questions(self) -> usize {
         match self {
             Exercise::TwoUnknowns => 10,
+            Exercise::ErrorRecovery => 15,
             _ => EXPRESSION_QUESTIONS,
         }
     }
@@ -230,12 +231,13 @@ impl Question {
     }
 }
 
-/// What the board shows: a single expression, or two equations with two
-/// unknowns. Both know the answer to type in and how to draw themselves.
+/// What the board shows: an expression or a word problem. Every problem knows
+/// the answer to type in and how to draw itself.
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Problem {
     Expression(Question),
     TwoUnknowns(FruitSystem),
+    ErrorRecovery(MistakenFactor),
 }
 
 impl Problem {
@@ -244,15 +246,16 @@ impl Problem {
         match self {
             Problem::Expression(question) => question.answer(),
             Problem::TwoUnknowns(system) => system.answer(),
+            Problem::ErrorRecovery(mistake) => mistake.answer(),
         }
     }
 
-    /// Text for the board; a two-unknown question uses one line per equation,
-    /// which the board keeps as line breaks.
+    /// Text for the board, with line breaks kept by the board.
     fn display(&self) -> String {
         match self {
             Problem::Expression(question) => question.display(),
             Problem::TwoUnknowns(system) => system.display(),
+            Problem::ErrorRecovery(mistake) => mistake.display(),
         }
     }
 
@@ -265,7 +268,34 @@ impl Problem {
             Problem::Expression(question) if question.op2.is_none() => "48px",
             Problem::Expression(_) => "40px",
             Problem::TwoUnknowns(_) => "32px",
+            Problem::ErrorRecovery(_) => "24px",
         }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct MistakenFactor {
+    correct: u8,
+    mistaken: u8,
+    other: u8,
+}
+
+impl MistakenFactor {
+    fn wrong_product(&self) -> u8 {
+        self.mistaken * self.other
+    }
+
+    fn answer(&self) -> u32 {
+        self.correct as u32 * self.other as u32
+    }
+
+    fn display(&self) -> String {
+        t!(
+            "error-recovery-question",
+            correct: self.correct,
+            mistaken: self.mistaken,
+            product: self.wrong_product()
+        )
     }
 }
 
@@ -279,9 +309,9 @@ impl Problem {
 /// a peach or an orange reads as poorly as 🍐 next to 🥝.
 const LOOKALIKE_FRUITS: [&[&str]; 4] = [
     &["🍎", "🍓", "🍑", "🍊"], // warm: red, peach and orange
-    &["🍌"],                  // yellow
-    &["🍐", "🥝"],            // green
-    &["🍇"],                  // purple
+    &["🍌"],                   // yellow
+    &["🍐", "🥝"],             // green
+    &["🍇"],                   // purple
 ];
 
 /// A fruit is worth at least two, so the product asked at the end is never a
@@ -307,7 +337,11 @@ impl FruitEquation {
     /// The equation as text, positive term first so no line starts with a minus.
     fn display(&self, fruits: [&'static str; 2]) -> String {
         let order = if self.counts[0] > 0 { [0, 1] } else { [1, 0] };
-        let sign = if self.counts[order[1]] < 0 { " − " } else { " + " };
+        let sign = if self.counts[order[1]] < 0 {
+            " − "
+        } else {
+            " + "
+        };
         format!(
             "{}{sign}{} = {}",
             Self::term(fruits[order[0]], self.counts[order[0]]),
@@ -380,11 +414,7 @@ fn pick_fruit(rng: &mut SimpleRng, group: &[&'static str]) -> &'static str {
 }
 
 fn random_sign(rng: &mut SimpleRng) -> i8 {
-    if rng.gen_range(0, 1) == 0 {
-        1
-    } else {
-        -1
-    }
+    if rng.gen_range(0, 1) == 0 { 1 } else { -1 }
 }
 
 /// One equation whose two-digit right-hand side follows from `values`. The
@@ -671,6 +701,18 @@ fn random_problem(exercise: Exercise) -> Problem {
             }
         }
         Exercise::TwoUnknowns => return Problem::TwoUnknowns(random_fruit_system(&mut rng)),
+        Exercise::ErrorRecovery => {
+            let correct = rng.gen_range(2, 9);
+            let mut mistaken = rng.gen_range(2, 9);
+            if mistaken == correct {
+                mistaken = if correct == 9 { 8 } else { correct + 1 };
+            }
+            return Problem::ErrorRecovery(MistakenFactor {
+                correct,
+                mistaken,
+                other: rng.gen_range(2, 9),
+            });
+        }
     };
     Problem::Expression(question)
 }
@@ -733,12 +775,10 @@ pub fn MentalMath() -> Element {
     let mut keypad_round = use_signal(|| Round::new(DrillLevel::Progressive));
     let mut keypad_feedback = use_signal(|| None::<Press>);
 
-    use_interval(Duration::from_secs(1), move |()| {
-        match practice() {
-            Some(Practice::Arithmetic(_)) if !finished() => elapsed += 1,
-            Some(Practice::Keypad(_)) => keypad_round.write().tick(),
-            _ => {}
-        }
+    use_interval(Duration::from_secs(1), move |()| match practice() {
+        Some(Practice::Arithmetic(_)) if !finished() => elapsed += 1,
+        Some(Practice::Keypad(_)) => keypad_round.write().tick(),
+        _ => {}
     });
 
     // Focus what the running practice reads its input from: the answer input for
@@ -910,6 +950,11 @@ pub fn MentalMath() -> Element {
                     label: t!("two-unknowns"),
                     selected: practice() == Some(Practice::Arithmetic(Exercise::TwoUnknowns)),
                     onpick: move |_| start_practice(Practice::Arithmetic(Exercise::TwoUnknowns)),
+                }
+                PracticeButton {
+                    label: t!("error-recovery"),
+                    selected: practice() == Some(Practice::Arithmetic(Exercise::ErrorRecovery)),
+                    onpick: move |_| start_practice(Practice::Arithmetic(Exercise::ErrorRecovery)),
                 }
 
                 // Numeric-keypad finger drills, alongside the arithmetic ones.
@@ -1182,7 +1227,9 @@ mod tests {
             let first = match q.op {
                 Operator::Add => q.left as i32 + q.right as i32,
                 Operator::Sub => q.left as i32 - q.right as i32,
-                Operator::Mul | Operator::Div => unreachable!("chain add/sub must not multiply or divide"),
+                Operator::Mul | Operator::Div => {
+                    unreachable!("chain add/sub must not multiply or divide")
+                }
             };
             assert!(
                 (0..=100).contains(&first),
@@ -1192,7 +1239,9 @@ mod tests {
             let result = match op2 {
                 Operator::Add => first + third as i32,
                 Operator::Sub => first - third as i32,
-                Operator::Mul | Operator::Div => unreachable!("chain add/sub must not multiply or divide"),
+                Operator::Mul | Operator::Div => {
+                    unreachable!("chain add/sub must not multiply or divide")
+                }
             };
             assert!((10..=99).contains(&result), "result not two-digit: {q:?}");
             assert_eq!(q.answer(), result as u32);
@@ -1207,13 +1256,20 @@ mod tests {
         let mut seen_result = false;
         for _ in 0..2000 {
             let q = expression_of(Exercise::MulMixedAddSub);
-            let third = q.third.expect("mul mixed question must have a third operand");
-            let op2 = q.op2.expect("mul mixed question must have a second operator");
+            let third = q
+                .third
+                .expect("mul mixed question must have a third operand");
+            let op2 = q
+                .op2
+                .expect("mul mixed question must have a second operator");
 
             assert_eq!(q.op, Operator::Mul, "first operator must be ×");
             assert!((1..=9).contains(&q.left), "factor out of 1..=9: {q:?}");
             assert!((1..=9).contains(&q.right), "factor out of 1..=9: {q:?}");
-            assert!((1..=99).contains(&third), "third operand out of 1..=99: {q:?}");
+            assert!(
+                (1..=99).contains(&third),
+                "third operand out of 1..=99: {q:?}"
+            );
             assert_eq!(
                 q.display().matches('?').count(),
                 1,
@@ -1261,6 +1317,7 @@ mod tests {
             Exercise::MulMixedAddSub,
             Exercise::MulDivMixedAddSub,
             Exercise::TwoUnknowns,
+            Exercise::ErrorRecovery,
         ] {
             let questions = exercise.questions();
             let hidden = exercise.hidden_clock_questions();
@@ -1275,11 +1332,51 @@ mod tests {
 
         // The expression drills ask thirty questions and hide the clock for the
         // last ten of them...
-        assert_eq!(Exercise::MultiplicationTable.questions(), EXPRESSION_QUESTIONS);
+        assert_eq!(
+            Exercise::MultiplicationTable.questions(),
+            EXPRESSION_QUESTIONS
+        );
         assert_eq!(Exercise::MultiplicationTable.hidden_clock_questions(), 10);
         // ...and two unknowns asks ten, with its last three hidden.
         assert_eq!(Exercise::TwoUnknowns.questions(), 10);
         assert_eq!(Exercise::TwoUnknowns.hidden_clock_questions(), 3);
+        assert_eq!(Exercise::ErrorRecovery.questions(), 15);
+        assert_eq!(Exercise::ErrorRecovery.hidden_clock_questions(), 5);
+    }
+
+    #[test]
+    fn error_recovery_questions_reconstruct_the_correct_product() {
+        let example = MistakenFactor {
+            correct: 4,
+            mistaken: 5,
+            other: 6,
+        };
+        assert_eq!(example.wrong_product(), 30);
+        assert_eq!(example.answer(), 24);
+
+        let (mut increased, mut decreased) = (false, false);
+        for _ in 0..2000 {
+            let mistake = match random_problem(Exercise::ErrorRecovery) {
+                Problem::ErrorRecovery(mistake) => mistake,
+                other => panic!("expected error recovery, got {other:?}"),
+            };
+            assert!((2..=9).contains(&mistake.correct));
+            assert!((2..=9).contains(&mistake.mistaken));
+            assert!((2..=9).contains(&mistake.other));
+            assert_ne!(mistake.correct, mistake.mistaken);
+
+            let wrong_product = mistake.wrong_product();
+            assert_eq!(wrong_product % mistake.mistaken, 0);
+            assert_eq!(wrong_product / mistake.mistaken, mistake.other);
+            assert_eq!(
+                mistake.answer(),
+                mistake.correct as u32 * mistake.other as u32
+            );
+
+            increased |= mistake.mistaken > mistake.correct;
+            decreased |= mistake.mistaken < mistake.correct;
+        }
+        assert!(increased && decreased, "mistakes should go both ways");
     }
 
     #[test]
@@ -1404,7 +1501,10 @@ mod tests {
             }
         }
 
-        assert!(seen_mul && seen_div, "both × and ÷ questions should show up");
+        assert!(
+            seen_mul && seen_div,
+            "both × and ÷ questions should show up"
+        );
         assert!(
             seen_blank.iter().all(|seen| *seen),
             "blank should cover all four positions"
@@ -1468,7 +1568,11 @@ mod tests {
                     (10..=99).contains(&equation.total),
                     "total is not two-digit: {system:?}"
                 );
-                let symbols: u32 = equation.counts.iter().map(|c| c.unsigned_abs() as u32).sum();
+                let symbols: u32 = equation
+                    .counts
+                    .iter()
+                    .map(|c| c.unsigned_abs() as u32)
+                    .sum();
                 assert!(
                     (1..=MAX_FRUITS_PER_EQUATION as u32).contains(&symbols),
                     "wrong number of fruit symbols on one line: {system:?}"
@@ -1515,7 +1619,10 @@ mod tests {
                     system.values[0] as u32 * system.values[1] as u32
                 ),
             }
-            assert!(system.answer() <= 81, "answer outside the table: {system:?}");
+            assert!(
+                system.answer() <= 81,
+                "answer outside the table: {system:?}"
+            );
         }
     }
 
